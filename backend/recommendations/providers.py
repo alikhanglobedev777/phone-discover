@@ -60,7 +60,7 @@ def get_provider_status() -> dict:
             "label": "Deterministic fallback (OpenAI key is missing)",
         }
     if active == "gemini":
-        model = getattr(settings, "GEMINI_CHAT_MODEL", "gemini-3.6-flash")
+        model = getattr(settings, "GEMINI_CHAT_MODEL", "gemini-3.8-flash")
         return {
             "requested": requested,
             "active": active,
