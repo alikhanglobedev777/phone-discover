@@ -1,5 +1,5 @@
 param(
-    [string]$Model = "gemini-3.6-flash",
+    [string]$Model = "gemini-3.8-flash",
     [switch]$TestConnection
 )
 
@@ -7,7 +7,6 @@ $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $backendPath = Join-Path $projectRoot "backend"
 $environmentPath = Join-Path $backendPath ".env.local"
-$environmentExamplePath = Join-Path $backendPath ".env.local.example"
 $pythonPath = Join-Path $backendPath ".venv\Scripts\python.exe"
 
 function Set-DotEnvValue {
@@ -42,8 +41,8 @@ function Set-DotEnvValue {
 }
 
 if (-not (Test-Path $environmentPath)) {
-    Copy-Item $environmentExamplePath $environmentPath
-    Write-Host "Created backend/.env.local" -ForegroundColor Cyan
+    & (Join-Path $PSScriptRoot "init-dev-env.ps1")
+    if (-not $?) { throw "Development environment initialization failed." }
 }
 
 Write-Host "Configure Gemini for Mobile Discovery" -ForegroundColor Cyan

@@ -1,5 +1,8 @@
 import os
 from pathlib import Path
+from urllib.parse import quote
+
+from django.core.exceptions import ImproperlyConfigured
 
 import dj_database_url
 from dotenv import load_dotenv
@@ -7,9 +10,20 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env.local")
 
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "unsafe-development-key")
-DEBUG = os.getenv("DJANGO_DEBUG", "1") == "1"
-ALLOWED_HOSTS = [host.strip() for host in os.getenv("DJANGO_ALLOWED_HOSTS", "*").split(",") if host.strip()]
+DEBUG = os.getenv("DJANGO_DEBUG", "0").lower() in {"1", "true", "yes"}
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "").strip()
+if len(SECRET_KEY) < 32:
+    raise ImproperlyConfigured(
+        "Set DJANGO_SECRET_KEY to at least 32 characters in your private environment file. "
+        "Run scripts/init-dev-env.ps1 for local development."
+    )
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+    if host.strip()
+]
+if not DEBUG and (not ALLOWED_HOSTS or "*" in ALLOWED_HOSTS):
+    raise ImproperlyConfigured("Production requires explicit DJANGO_ALLOWED_HOSTS.")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -60,7 +74,7 @@ DATABASES = {
     "default": dj_database_url.config(
         default=(
             f"postgresql://{os.getenv('POSTGRES_USER', 'mobile_discovery')}"
-            f":{os.getenv('POSTGRES_PASSWORD', 'mobile_discovery')}@"
+            f":{quote(os.getenv('POSTGRES_PASSWORD', ''), safe='')}@"
             f"{os.getenv('POSTGRES_HOST', 'localhost')}:{os.getenv('POSTGRES_PORT', '5432')}"
             f"/{os.getenv('POSTGRES_DB', 'mobile_discovery')}"
         ),
@@ -79,6 +93,16 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("CSRF_TRUSTED_ORIGINS", "http://localhost:5173").split(",")
+    if origin.strip()
+]
+
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+SECURE_CONTENT_TYPE_NOSNIFF = True
 
 CORS_ALLOWED_ORIGINS = [
     origin.strip()
@@ -109,7 +133,7 @@ AI_REQUEST_TIMEOUT_SECONDS = float(os.getenv("AI_REQUEST_TIMEOUT_SECONDS", "15")
 AI_MAX_RETRIES = int(os.getenv("AI_MAX_RETRIES", "1"))
 AI_MAX_OUTPUT_TOKENS = int(os.getenv("AI_MAX_OUTPUT_TOKENS", "320"))
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_CHAT_MODEL = os.getenv("GEMINI_CHAT_MODEL", "gemini-3.6-flash")
+GEMINI_CHAT_MODEL = os.getenv("GEMINI_CHAT_MODEL", "gemini-3.8-flash")
 GEMINI_OPENAI_BASE_URL = os.getenv(
     "GEMINI_OPENAI_BASE_URL",
     "https://generativelanguage.googleapis.com/v1beta/openai/",
