@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import RecommendationQuery
+from .models import RecommendationQuery, ResearchJob
 
 
 @admin.register(RecommendationQuery)
@@ -35,6 +35,20 @@ class RecommendationQueryAdmin(admin.ModelAdmin):
     @admin.display(description="Priorities")
     def priority_summary(self, obj):
         return ", ".join(obj.priorities) or "Balanced"
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(ResearchJob)
+class ResearchJobAdmin(admin.ModelAdmin):
+    list_display = ("id", "status", "requested_by", "created_at", "finished_at")
+    list_filter = ("status", "created_at")
+    readonly_fields = ("id", "requested_by", "criteria", "status", "counts", "notice", "created_at", "started_at", "finished_at")
+    search_fields = ("id",)
 
     def has_add_permission(self, request):
         return False
