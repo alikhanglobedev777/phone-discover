@@ -25,7 +25,7 @@ def interpret_local_request(validated: dict) -> dict:
         raise ValueError("Please select one phone condition: box pack, open box, used or refurbished.")
     fields = (
         "budget_pkr", "condition", "grade", "pta_status", "pta_verification",
-        "city", "brand", "priorities", "ram_min", "storage_min",
+        "city", "brand", "device_query", "priorities", "ram_min", "storage_min",
     )
     criteria = {key: validated.get(key, parsed.get(key)) for key in fields}
     criteria.update({
@@ -97,6 +97,8 @@ def rank_pakistan_phones(criteria: dict):
     ):
         if criteria.get(key) is not None:
             search_params[key] = criteria[key]
+    if criteria.get("device_query"):
+        search_params["q"] = criteria["device_query"]
     all_cards = []
     searched = 0
     total_count = None
@@ -183,10 +185,10 @@ def local_explanation(criteria, summary):
     if not summary["results"]:
         return (
             "Is budget aur condition ke liye verified local price data nahi mila. "
-            "Internet research abhi enabled nahi hai."
+            "Internet research ke liye 'Request Gemini web research' select karein."
             if criteria["response_language"] == "roman_urdu" else
             "I found no published phone with fresh, permitted Pakistani price evidence matching your requirements. "
-            "Web research is not enabled in this patch."
+            "To check unverified external sources, select 'Request Gemini web research' and ask again."
         )
     best = summary["results"][0]
     name = f"{best['device']['brand']} {best['device']['name']}".strip()

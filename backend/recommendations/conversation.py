@@ -19,7 +19,7 @@ from .services import json_ready
 
 PREFERENCE_FIELDS = (
     "budget_pkr", "condition", "grade", "pta_status", "pta_verification",
-    "city", "brand", "priorities", "ram_min", "storage_min",
+    "city", "brand", "device_query", "priorities", "ram_min", "storage_min",
     "strict_budget", "max_results",
 )
 RESET_PATTERN = re.compile(r"\b(?:start\s+over|reset(?:\s+chat|\s+preferences)?|new\s+search)\b", re.I)
@@ -61,6 +61,12 @@ def build_conversation_criteria(validated, supplied_fields, previous):
     for key, pattern in (("brand", CLEAR_BRAND), ("budget_pkr", CLEAR_BUDGET), ("city", CLEAR_CITY)):
         if pattern.search(message):
             merged.pop(key, None)
+    # Keep an exact model for follow-up constraints, but discard it when a
+    # different brand is explicitly requested (e.g. "Samsung mein batao").
+    requested_brand = (validated.get("brand") if "brand" in supplied_fields
+                       else parsed.get("brand"))
+    if (requested_brand and requested_brand != merged.get("brand")) or CLEAR_BRAND.search(message):
+        merged.pop("device_query", None)
     for key in PREFERENCE_FIELDS:
         # The intent parser always returns "priorities": [] even when a turn
         # mentions no priority. Do not erase a prior preference on brand-only

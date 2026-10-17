@@ -142,6 +142,13 @@ def parse_pakistan_intent(message: str) -> dict:
         if re.search(rf"\b{re.escape(alias)}\b", text):
             result["brand"] = brand
             break
+    # Canonicalize explicit model names without sending arbitrary chat text to
+    # Gemini. An exact-model request must never silently become any Apple phone.
+    model = re.search(r"\biphone\s+(\d{1,2})\s*(pro\s+max|pro|plus|air|mini)?\b", text)
+    if model:
+        suffix = " ".join(word.capitalize() for word in (model.group(2) or "").split())
+        result["device_query"] = f"iPhone {model.group(1)}" + (f" {suffix}" if suffix else "")
+
     result["response_language"] = (
         "roman_urdu" if re.search(r"\b(?:mujhe|chahiye|batao|btao|wala|wali|tak|mein|kaunsa|konsa|sabse)\b", text)
         else "english"
