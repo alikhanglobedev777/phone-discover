@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "rest_framework",
     "django_filters",
+    "config",
     "catalog",
     "recommendations",
 ]
@@ -82,7 +83,14 @@ DATABASES = {
     )
 }
 
-AUTH_PASSWORD_VALIDATORS = []
+# Development is deliberately frictionless; production admin accounts must meet
+# Django's standard password checks. Do not use the development server in production.
+AUTH_PASSWORD_VALIDATORS = [] if DEBUG else [
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+]
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
 USE_I18N = True
@@ -102,13 +110,41 @@ CSRF_TRUSTED_ORIGINS = [
 
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_HTTPONLY = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+X_FRAME_OPTIONS = "DENY"
+
+# TLS is terminated by the deployment proxy. Only trust forwarded protocol
+# headers if that proxy *overwrites* client-provided headers. Leave off locally.
+SECURE_PROXY_SSL_HEADER = (
+    ("HTTP_X_FORWARDED_PROTO", "https")
+    if os.getenv("DJANGO_TRUST_PROXY_HEADERS", "0").lower() in {"1", "true", "yes"}
+    else None
+)
+SECURE_SSL_REDIRECT = os.getenv("DJANGO_SECURE_SSL_REDIRECT", "0").lower() in {"1", "true", "yes"}
+SECURE_HSTS_SECONDS = int(os.getenv("DJANGO_HSTS_SECONDS", "0"))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+SECURE_HSTS_PRELOAD = False
 
 CORS_ALLOWED_ORIGINS = [
     origin.strip()
     for origin in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173").split(",")
     if origin.strip()
 ]
+
+# DRF throttling uses Django's default cache. LocMemCache is fine for one
+# development process, but production workers require a shared cache so that
+# anonymous request quotas cannot be bypassed across workers.
+USE_REDIS_CACHE = os.getenv("DJANGO_USE_REDIS_CACHE", "0").lower() in {"1", "true", "yes"}
+if USE_REDIS_CACHE:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0"),
+            "KEY_PREFIX": "phone_discover",
+        }
+    }
 
 REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
