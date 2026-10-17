@@ -14,6 +14,11 @@ class RecommendationApiTests(TestCase):
     def setUp(self):
         call_command("seed_demo", verbosity=0)
         self.client = APIClient()
+        # These functional tests exercise recommendations, not rate limiting.
+        # Avoid sharing the per-IP throttle counter with other test classes.
+        throttle_patch = patch("recommendations.views.RecommendationView.throttle_classes", [])
+        throttle_patch.start()
+        self.addCleanup(throttle_patch.stop)
 
     def test_natural_language_recommendations_respect_budget(self):
         response = self.client.post(

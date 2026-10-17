@@ -205,6 +205,8 @@ def search_local_catalog(criteria, *, as_of=None):
                 "ram_gb": variant.ram_gb,
                 "storage_gb": variant.storage_gb,
                 "chipset": variant.chipset,
+                "display_refresh_hz": variant.display_refresh_hz,
+                "battery_mah": variant.battery_mah,
                 "camera_score": str(variant.camera_score),
                 "gaming_score": str(variant.gaming_score),
                 "battery_score": str(variant.battery_score),
