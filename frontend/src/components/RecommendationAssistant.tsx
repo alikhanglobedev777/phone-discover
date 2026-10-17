@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 import {
   converse, conversationPayload, forgetConversation, formatPriceRange, safeSourceUrl,
 } from "../lib/pakistan";
-import type { ConversationRequest, LocalResult, ResearchPreview } from "../lib/pakistan";
+import type { ConversationRequest, LocalResult, ResearchPreview, GeminiGuidance } from "../lib/pakistan";
 
 type Props = {
   onOpenDevice: (slug: string) => void;
@@ -17,10 +17,11 @@ type ChatMessage = {
   results?: LocalResult[];
   needsResearch?: boolean;
   research?: ResearchPreview;
+  guidance?: GeminiGuidance;
   memoryUsed?: boolean;
 };
 
-type EditableFilters = Partial<Omit<ConversationRequest, "session_id" | "message" | "research">>;
+type EditableFilters = Partial<Omit<ConversationRequest, "session_id" | "message" | "research" | "guidance">>;
 
 const PRIORITIES = ["camera", "gaming", "battery", "display", "value"];
 const QUICK_PROMPTS = [
@@ -82,6 +83,7 @@ export function RecommendationAssistant({ onOpenDevice, onCompareDevice }: Props
   const [storageMin, setStorageMin] = useState("");
   const [strictBudget, setStrictBudget] = useState(true);
   const [researchEnabled, setResearchEnabled] = useState(false);
+  const [guidanceEnabled, setGuidanceEnabled] = useState(false);
   const [pending, setPending] = useState<EditableFilters>({});
   const [messages, setMessages] = useState<ChatMessage[]>([GREETING]);
   const [loading, setLoading] = useState(false);
@@ -116,7 +118,7 @@ export function RecommendationAssistant({ onOpenDevice, onCompareDevice }: Props
     setMessage("");
     setBudget(""); setCity(""); setCondition(""); setPtaStatus("");
     setPtaVerification(""); setPriorities([]); setRamMin(""); setStorageMin("");
-    setStrictBudget(true); setResearchEnabled(false); setPending({});
+    setStrictBudget(true); setResearchEnabled(false); setGuidanceEnabled(false); setPending({});
     setLoading(false); setError("");
     try {
       await forgetConversation(previousId);
@@ -140,13 +142,13 @@ export function RecommendationAssistant({ onOpenDevice, onCompareDevice }: Props
     setMessages((current) => [...current, userMessage]);
     setMessage("");
     try {
-      const response = await converse(conversationPayload(sessionId, text, researchEnabled, explicit), controller.signal);
+      const response = await converse(conversationPayload(sessionId, text, researchEnabled, explicit, guidanceEnabled), controller.signal);
       if (generation !== generationRef.current) return;
       setPending({});
       setMessages((current) => [...current, {
         id: response.query_id || uuid(), role: "assistant", text: response.explanation,
         results: response.results, needsResearch: response.needs_research,
-        research: response.research, memoryUsed: response.memory_used,
+        research: response.research, guidance: response.guidance, memoryUsed: response.memory_used,
       }]);
     } catch (reason) {
       if (generation !== generationRef.current || (reason instanceof Error && reason.name === "AbortError")) return;
@@ -167,7 +169,7 @@ export function RecommendationAssistant({ onOpenDevice, onCompareDevice }: Props
         <div>
           <p className="eyebrow">Phone Discover · Pakistan</p>
           <h2 id="assistant-title">Your phone buying copilot.</h2>
-          <p>Verified local database first. Conversation memory is limited to this browser tab; outside research requires your opt-in.</p>
+          <p>Verified local database first. Opt into separate Gemini guidance or grounded web research; neither is a verified Pakistani market listing. Conversation memory stays in this tab.</p>
         </div>
         <button type="button" className="assistant-new-chat" onClick={() => void newChat()}>New chat + forget</button>
       </header>
@@ -195,7 +197,8 @@ export function RecommendationAssistant({ onOpenDevice, onCompareDevice }: Props
             <label className="assistant-field"><span>Minimum storage</span><select disabled={loading} value={storageMin} onChange={(event) => { setStorageMin(event.target.value); if (event.target.value) change("storage_min", Number(event.target.value)); else setPending((current) => { const next = { ...current }; delete next.storage_min; return next; }); }}><option value="">Any</option><option value="128">128 GB</option><option value="256">256 GB</option><option value="512">512 GB</option></select></label>
           </div>
           <label className="strict-budget-toggle"><input type="checkbox" disabled={loading} checked={strictBudget} onChange={(event) => { setStrictBudget(event.target.checked); change("strict_budget", event.target.checked); }} /><span><strong>Strict PKR budget</strong><small>Require observed upper price bound to fit</small></span></label>
-          <label className="strict-budget-toggle"><input type="checkbox" disabled={loading} checked={researchEnabled} onChange={(event) => setResearchEnabled(event.target.checked)} /><span><strong>Request Gemini web research</strong><small>Only if local evidence is insufficient; sources are unverified</small></span></label>
+          <label className="strict-budget-toggle"><input type="checkbox" disabled={loading} checked={guidanceEnabled} onChange={(event) => setGuidanceEnabled(event.target.checked)} /><span><strong>Use Gemini general guidance</strong><small>Sends this message (with basic contact redaction) to Google if no eligible local matches. No web search, verified prices or PTA checks.</small></span></label>
+          <label className="strict-budget-toggle"><input type="checkbox" disabled={loading} checked={researchEnabled} onChange={(event) => setResearchEnabled(event.target.checked)} /><span><strong>Request Gemini web research</strong><small>Separate Google Search grounding; requires API quota and opt-in. External sources are unverified.</small></span></label>
           <div className="quick-prompts"><span>Try asking</span>{QUICK_PROMPTS.map((prompt) => <button type="button" disabled={loading} key={prompt} onClick={() => setMessage(prompt)}>{prompt}</button>)}</div>
         </aside>
         <div className="assistant-conversation">
@@ -207,6 +210,8 @@ export function RecommendationAssistant({ onOpenDevice, onCompareDevice }: Props
                 {entry.memoryUsed && <p className="pk-evidence-note">Preferences carried forward from this session.</p>}
                 {entry.results && entry.results.length > 0 && <div className="pk-result-grid">{entry.results.map((result) => <PriceCard key={`${entry.id}-${result.device.slug}`} result={result} onOpenDevice={onOpenDevice} onCompareDevice={onCompareDevice} />)}</div>}
                 {entry.needsResearch && <p className="pk-evidence-note">Local evidence is incomplete. You can opt in to web research; it will not create verified catalog entries.</p>}
+                {entry.guidance?.status === "generated" && <div className="pk-research-preview pk-guidance-preview"><strong>Gemini general guidance · not verified</strong><p>{entry.guidance.notice}</p><p className="pk-research-summary">{entry.guidance.text}</p></div>}
+                {entry.guidance && ["unavailable", "disabled", "rate_limited"].includes(entry.guidance.status) && <p className="pk-evidence-note" role="status">Gemini guidance: {entry.guidance.notice}</p>}
                 {entry.research && entry.research.status !== "not_requested" && <div className="pk-research-preview"><strong>Gemini research: {entry.research.status.replaceAll("_", " ")}</strong><p>{entry.research.notice}</p>{entry.research.summary && <p className="pk-research-summary">{entry.research.summary}</p>}{entry.research.sources?.length > 0 && <ul>{entry.research.sources.map((source) => { const url = safeSourceUrl(source.url); return url ? <li key={url}><a href={url} target="_blank" rel="noopener noreferrer">{source.title || "Research source"} ↗</a></li> : null; })}</ul>}</div>}
               </div>
             </div>)}

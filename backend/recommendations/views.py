@@ -8,6 +8,7 @@ from rest_framework.views import APIView
 from .models import RecommendationQuery
 from .conversation import build_conversation_criteria, previous_context, store_context, forget_context, RESET_PATTERN
 from .gemini_research import research_with_gemini
+from .gemini_guidance import guidance_configured, generate_general_guidance
 from .providers import explain_recommendation
 from .serializers import RecommendationRequestSerializer, PakistanRecommendationSerializer, ConversationRequestSerializer
 from .local_rank import interpret_local_request, rank_pakistan_phones, local_explanation
@@ -110,6 +111,13 @@ class PakistanLocalRecommendationView(APIView):
         })
 
 
+class GeminiGuidanceThrottle(SimpleRateThrottle):
+    scope = "gemini_guidance"
+
+    def get_cache_key(self, request, view):
+        return self.cache_format % {"scope": self.scope, "ident": self.get_ident(request)}
+
+
 class GeminiResearchThrottle(SimpleRateThrottle):
     scope = "gemini_research"
 
@@ -154,6 +162,21 @@ class PakistanConversationView(APIView):
                     research["notice"] = "Research request limit reached; the local shortlist is still available."
                 else:
                     research = research_with_gemini(criteria)
+        # Gemini is an explicitly requested *ungrounded* advisor when there are
+        # no eligible local listings. The separate research flag still controls
+        # paid Google Search grounding; neither response becomes catalog data.
+        guidance = {"status": "not_requested", "text": "", "notice": "Gemini general guidance was not requested."}
+        if validated["guidance"]:
+            if summary["results"]:
+                guidance = {"status": "not_needed", "text": "", "notice": "Use the eligible local shortlist above."}
+            elif research["status"] == "grounded_preview":
+                guidance = {"status": "not_needed", "text": "", "notice": "Grounded research was provided separately."}
+            elif not guidance_configured():
+                guidance = {"status": "disabled", "text": "", "notice": "Gemini general guidance is not configured."}
+            elif not GeminiGuidanceThrottle().allow_request(request, self):
+                guidance = {"status": "rate_limited", "text": "", "notice": "Gemini guidance limit reached. Local search is still available."}
+            else:
+                guidance = generate_general_guidance(criteria)
         results = summary["results"]
         # Preserve existing analytics/retention behavior; never store provider output.
         query = RecommendationQuery.objects.create(
@@ -170,6 +193,8 @@ class PakistanConversationView(APIView):
             "research_requested": validated["research"],
             "research_executed": research["status"] == "grounded_preview",
             "research": research,
+            "guidance_requested": validated["guidance"],
+            "guidance": guidance,
         })
 
 

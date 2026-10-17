@@ -134,3 +134,4 @@ class ConversationRequestSerializer(PakistanRecommendationSerializer):
     use_memory = serializers.BooleanField(default=True)
     reset_context = serializers.BooleanField(default=False)
     research = serializers.BooleanField(default=False)
+    guidance = serializers.BooleanField(default=False)
