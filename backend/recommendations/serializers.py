@@ -126,3 +126,11 @@ class PakistanRecommendationSerializer(serializers.Serializer):
         if attrs.get("pta_verification") == "checked" and attrs.get("pta_status") == "unknown":
             raise serializers.ValidationError({"pta_status": "Checked PTA status cannot be unknown."})
         return attrs
+
+
+class ConversationRequestSerializer(PakistanRecommendationSerializer):
+    """Opt-in research and per-session structured preference memory."""
+
+    use_memory = serializers.BooleanField(default=True)
+    reset_context = serializers.BooleanField(default=False)
+    research = serializers.BooleanField(default=False)

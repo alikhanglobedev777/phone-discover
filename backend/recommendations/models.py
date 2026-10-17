@@ -41,3 +41,18 @@ class RecommendationQuery(models.Model):
 
     def __str__(self):
         return f"{self.country_code} recommendation at {self.created_at:%Y-%m-%d %H:%M}"
+
+
+class ConversationContext(models.Model):
+    """Guest conversation preferences addressed by an unguessable UUID handle."""
+
+    session_id = models.UUIDField(primary_key=True, editable=False)
+    preferences = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True, db_index=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+
+    def __str__(self):
+        return f"Conversation {self.session_id}"
