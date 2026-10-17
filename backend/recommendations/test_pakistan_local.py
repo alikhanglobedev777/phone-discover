@@ -93,6 +93,32 @@ class PakistanLocalRecommendationTests(TestCase):
         self.assertIn("gaming", parsed["priorities"])
         self.assertEqual(parsed["response_language"], "roman_urdu")
 
+    def test_exact_iphone_name_is_preserved_without_inventing_budget(self):
+        parsed = parse_pakistan_intent("iPhone 18 Pro Max details")
+        self.assertEqual(parsed["brand"], "apple")
+        self.assertEqual(parsed["device_query"], "iPhone 18 Pro Max")
+        self.assertNotIn("budget_pkr", parsed)
+        self.assertNotIn("device_query", parse_pakistan_intent("an Apple phone"))
+
+    def test_explicit_iphone_model_does_not_return_other_iphones(self):
+        apple = Brand.objects.create(name="Apple", slug="apple")
+        for number in (17, 18):
+            name = f"iPhone {number} Pro Max"
+            device = Device.objects.create(
+                brand=apple, name=name, slug=f"iphone-{number}-pro-max",
+                is_published=True,
+            )
+            variant = DeviceVariant.objects.create(
+                device=device, name="256 GB", ram_gb=8, storage_gb=256,
+            )
+            self.price(variant=variant)
+        response = self.ask("iPhone 18 Pro Max")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [item["device"]["name"] for item in response.data["results"]],
+            ["iPhone 18 Pro Max"],
+        )
+
     def test_lakh_and_combined_hazar_amounts(self):
         self.assertEqual(parse_pakistan_intent("1.2 lakh tak")["budget_pkr"], Decimal("120000"))
         self.assertEqual(parse_pakistan_intent("1 lakh 20 hazar budget")["budget_pkr"], Decimal("120000"))

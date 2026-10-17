@@ -79,6 +79,16 @@ class ConversationApiTests(TestCase):
         self.assertIn("gaming", follow.data["criteria"]["priorities"])
         self.assertEqual(follow.data["results"][0]["device"]["slug"], "samsung-example")
 
+    def test_exact_iphone_query_survives_follow_up_but_not_other_brand(self):
+        first = self.ask("iPhone 18 Pro Max")
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(first.data["criteria"]["device_query"], "iPhone 18 Pro Max")
+        follow = self.ask("used in Lahore", session_id=first.data["session_id"])
+        self.assertEqual(follow.data["criteria"]["device_query"], "iPhone 18 Pro Max")
+        changed = self.ask("Samsung mein batao", session_id=first.data["session_id"])
+        self.assertIsNone(changed.data["criteria"].get("device_query"))
+        self.assertEqual(changed.data["criteria"]["brand"], "samsung")
+
     def test_budget_update_does_not_keep_old_budget(self):
         first = self.ask("used phone under 80k Lahore", max_results=1)
         next_turn = self.ask("budget 90 hazar", session_id=first.data["session_id"])
@@ -202,6 +212,13 @@ class ResearchParsingTests(SimpleTestCase):
                     "https://user:password@example.org/a"):
             with self.subTest(bad=bad), self.assertRaises(ResearchUnavailable):
                 extract_grounded_answer(self.answer(uri=bad))
+
+    def test_research_prompt_targets_canonical_model_not_raw_chat(self):
+        from .gemini_research import _prompt
+        result = _prompt({"device_query": "iPhone 18 Pro Max", "brand": "apple",
+                          "message": "my private raw request"})
+        self.assertIn("iPhone 18 Pro Max", result)
+        self.assertNotIn("my private raw request", result)
 
     def test_valid_grounding_is_bounded(self):
         result = extract_grounded_answer(self.answer(text="data" * 1000))

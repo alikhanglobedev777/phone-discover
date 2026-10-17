@@ -92,7 +92,7 @@ def extract_grounded_answer(result, max_chars=1800):
 def _prompt(criteria, structured=False):
     allowed = (
         "budget_pkr", "condition", "pta_status", "pta_verification",
-        "city", "brand", "priorities", "ram_min", "storage_min",
+        "city", "brand", "device_query", "priorities", "ram_min", "storage_min",
     )
     safe = {key: str(criteria[key])[:120] for key in allowed if criteria.get(key) is not None}
     instruction = (
