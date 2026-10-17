@@ -1,9 +1,14 @@
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, viewsets
+from rest_framework.decorators import action
+from rest_framework.response import Response
 
 from .filters import DeviceFilter
 from .models import Brand, Device
-from .serializers import BrandSerializer, DeviceDetailSerializer, DeviceListSerializer
+from .pricing import PRICE_GUIDE_DISCLAIMER, price_summaries_for_device
+from .serializers import (
+    BrandSerializer, DeviceDetailSerializer, DeviceListSerializer, PakistanPriceQuerySerializer,
+)
 
 
 class BrandViewSet(viewsets.ReadOnlyModelViewSet):
@@ -33,3 +38,24 @@ class DeviceViewSet(viewsets.ReadOnlyModelViewSet):
         if self.action == "retrieve":
             return DeviceDetailSerializer
         return DeviceListSerializer
+
+    @action(detail=True, methods=["get"], url_path="pakistan-prices")
+    def pakistan_prices(self, request, slug=None):
+        """Public, evidence-filtered price guide for one published phone."""
+        device = self.get_object()
+        query = PakistanPriceQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        variant_id = query.validated_data.get("variant_id")
+        if variant_id is not None and not device.variants.filter(pk=variant_id).exists():
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({"variant_id": "This variant does not belong to this phone."})
+        return Response({
+            "device_id": device.id,
+            "device_slug": device.slug,
+            "currency": "PKR",
+            "filters": {
+                key: str(value) for key, value in query.validated_data.items()
+            },
+            "summaries": price_summaries_for_device(device.id, **query.validated_data),
+            "disclaimer": PRICE_GUIDE_DISCLAIMER,
+        })
