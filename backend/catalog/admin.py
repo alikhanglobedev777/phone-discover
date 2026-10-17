@@ -9,6 +9,7 @@ from django.db.models import Count
 from django.utils import timezone
 from django.utils.html import format_html
 
+from .research_ingestion import promote_approved_price_candidate
 from .admin_forms import (
     DeviceClaimAdminForm,
     IngestionCandidateReviewForm,
@@ -325,7 +326,7 @@ class IngestionCandidateAdmin(admin.ModelAdmin):
         "candidate_type", "source", "matched_device", "payload_preview", "fingerprint",
         "created_at", "updated_at", "reviewed_at",
     )
-    actions = ("approve_selected", "reject_selected")
+    actions = ("approve_selected", "reject_selected", "ingest_approved_prices")
     fieldsets = (
         ("Untrusted research payload (read-only)", {"fields": (
             "candidate_type", "source", "matched_device", "fingerprint", "payload_preview",
@@ -361,3 +362,10 @@ class IngestionCandidateAdmin(admin.ModelAdmin):
             self, request, queryset, field="status", target=IngestionCandidate.Status.REJECTED,
             label="Rejected",
         )
+
+
+    @admin.action(description="Ingest approved price leads as PENDING observations", permissions=["change"])
+    def ingest_approved_prices(self, request, queryset):
+        inserted = sum(1 for pk in queryset.values_list("pk", flat=True)
+                       if promote_approved_price_candidate(pk))
+        self.message_user(request, f"Created {inserted} pending price observation(s); independent price/PTA verification is still required.", messages.INFO)

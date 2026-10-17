@@ -124,6 +124,7 @@ REST_FRAMEWORK = {
         "catalog_search": os.getenv("CATALOG_SEARCH_RATE_LIMIT", "120/hour"),
         "conversation": os.getenv("CONVERSATION_RATE_LIMIT", "15/hour"),
         "gemini_research": os.getenv("GEMINI_RESEARCH_RATE_LIMIT", "3/hour"),
+        "research_job_status": os.getenv("RESEARCH_JOB_STATUS_RATE_LIMIT", "120/hour"),
     },
 }
 
@@ -146,3 +147,14 @@ RECOMMENDATION_QUERY_RETENTION_DAYS = int(os.getenv("RECOMMENDATION_QUERY_RETENT
 # Research is paid/externally networked: disabled by default, even with an API key.
 GEMINI_WEB_RESEARCH_ENABLED = os.getenv("GEMINI_WEB_RESEARCH_ENABLED", "0").lower() in {"1", "true", "yes"}
 CONVERSATION_RETENTION_DAYS = int(os.getenv("CONVERSATION_RETENTION_DAYS", "7"))
+
+# Patch 10: admin-triggered queue, opt-in to external provider charges.
+RESEARCH_JOB_QUEUE_ENABLED = os.getenv("RESEARCH_JOB_QUEUE_ENABLED", "0").lower() in {"1", "true", "yes"}
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://127.0.0.1:6379/1")
+CELERY_RESULT_BACKEND = None  # Status is recorded in Postgres, not in Redis.
+CELERY_TASK_IGNORE_RESULT = True
+CELERY_TASK_SERIALIZER = "json"
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_TIME_LIMIT = 70
+CELERY_TASK_SOFT_TIME_LIMIT = 60
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1

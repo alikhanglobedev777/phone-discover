@@ -1,4 +1,5 @@
 from rest_framework import status
+from rest_framework.permissions import IsAdminUser
 from rest_framework.throttling import SimpleRateThrottle
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
@@ -181,3 +182,73 @@ class ConversationForgetView(APIView):
     def delete(self, request, session_id):
         forget_context(session_id)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ResearchJobCollectionView(APIView):
+    """Staff-only, paid research jobs. Public conversational lookup stays read-only."""
+
+    permission_classes = [IsAdminUser]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "gemini_research"
+
+    def get_throttles(self):
+        self.throttle_scope = "gemini_research" if self.request.method == "POST" else "research_job_status"
+        return super().get_throttles()
+
+    def post(self, request):
+        from django.conf import settings
+        from .models import ResearchJob
+        from .tasks import run_research_job
+        from .serializers import PakistanRecommendationSerializer
+
+        if not (settings.RESEARCH_JOB_QUEUE_ENABLED and settings.GEMINI_WEB_RESEARCH_ENABLED
+                and settings.GEMINI_API_KEY):
+            return Response({"detail": "Research queue is disabled or not configured."}, status=503)
+        serializer = PakistanRecommendationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            criteria = interpret_local_request(serializer.validated_data)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=400)
+        # Only bounded structured preferences, never the raw message/session ID.
+        allowed = ("budget_pkr", "condition", "grade", "pta_status", "pta_verification",
+                   "city", "brand", "priorities", "ram_min", "storage_min")
+        stored = json_ready({k: criteria[k] for k in allowed if criteria.get(k) is not None})
+        job = ResearchJob.objects.create(criteria=stored, requested_by=request.user)
+        try:
+            # A non-running Celery worker will leave this queued until it starts.
+            run_research_job.apply_async(args=(str(job.id),), retry=False)
+        except Exception:
+            job.status = ResearchJob.Status.FAILED
+            job.notice = "Research could not be queued. Check the worker and broker."
+            from django.utils import timezone
+            job.finished_at = timezone.now()
+            job.save(update_fields=["status", "notice", "finished_at"])
+            return Response({"detail": "Research job could not be queued."}, status=503)
+        return Response({"id": str(job.id), "status": job.status, "poll_url": f"/api/recommendations/research-jobs/{job.id}/"}, status=202)
+
+    def get(self, request):
+        from .models import ResearchJob
+        qs = ResearchJob.objects.all() if request.user.is_superuser else ResearchJob.objects.filter(requested_by=request.user)
+        return Response({"results": [
+            {"id": str(j.id), "status": j.status, "counts": j.counts,
+             "notice": j.notice, "created_at": j.created_at.isoformat()}
+            for j in qs.order_by("-created_at")[:20]
+        ]})
+
+
+class ResearchJobDetailView(APIView):
+    permission_classes = [IsAdminUser]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "research_job_status"
+
+    def get(self, request, job_id):
+        from .models import ResearchJob
+        qs = ResearchJob.objects.all() if request.user.is_superuser else ResearchJob.objects.filter(requested_by=request.user)
+        job = qs.filter(pk=job_id).first()
+        if job is None:
+            return Response({"detail": "Not found."}, status=404)
+        return Response({"id": str(job.id), "status": job.status, "counts": job.counts,
+                         "notice": job.notice, "created_at": job.created_at.isoformat(),
+                         "started_at": job.started_at.isoformat() if job.started_at else None,
+                         "finished_at": job.finished_at.isoformat() if job.finished_at else None})
