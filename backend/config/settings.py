@@ -121,6 +121,7 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
     "DEFAULT_THROTTLE_RATES": {
         "recommendations": os.getenv("RECOMMENDATION_RATE_LIMIT", "30/hour"),
+        "catalog_search": os.getenv("CATALOG_SEARCH_RATE_LIMIT", "120/hour"),
     },
 }
 

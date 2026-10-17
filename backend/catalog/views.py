@@ -1,11 +1,16 @@
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, viewsets
+from rest_framework.permissions import AllowAny
+from rest_framework.throttling import ScopedRateThrottle
+from rest_framework.views import APIView
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from .filters import DeviceFilter
 from .models import Brand, Device
 from .pricing import PRICE_GUIDE_DISCLAIMER, price_summaries_for_device
+from .search import search_local_catalog
+from .search_serializers import CatalogSearchQuerySerializer
 from .serializers import (
     BrandSerializer, DeviceDetailSerializer, DeviceListSerializer, PakistanPriceQuerySerializer,
 )
@@ -59,3 +64,16 @@ class DeviceViewSet(viewsets.ReadOnlyModelViewSet):
             "summaries": price_summaries_for_device(device.id, **query.validated_data),
             "disclaimer": PRICE_GUIDE_DISCLAIMER,
         })
+
+
+class CatalogSearchView(APIView):
+    """Strict, read-only retrieval for future Gemini tools and public filters."""
+
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "catalog_search"
+
+    def get(self, request):
+        query = CatalogSearchQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        return Response(search_local_catalog(query.validated_data))

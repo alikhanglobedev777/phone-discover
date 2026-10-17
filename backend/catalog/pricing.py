@@ -51,6 +51,35 @@ def _price_string(value):
     return str(Decimal(value).quantize(PKR_QUANTUM, rounding=ROUND_HALF_UP))
 
 
+def eligible_price_observations(*, as_of=None):
+    """Reusable, read-only verified/fresh/permission-gated price queryset.
+
+    Each condition has a distinct freshness window. Manual entries still need
+    nonempty notes (checked by consumers after fetching); linked records must
+    have a permitted source with a documented reuse basis.
+    """
+    now = as_of if as_of is not None else timezone.now()
+    if timezone.is_naive(now):
+        raise ValueError("as_of must be timezone-aware")
+    freshness = Q()
+    for condition, days in FRESHNESS_DAYS.items():
+        freshness |= Q(condition=condition, observed_at__gte=now - timedelta(days=days))
+    return (
+        MarketPriceObservation.objects.filter(
+            freshness,
+            verification_status=ReviewStatus.VERIFIED,
+            reviewed_at__isnull=False,
+            observed_at__lte=now,
+        )
+        .exclude(listing_status=MarketPriceObservation.ListingStatus.ENDED)
+        .filter(
+            Q(source__isnull=True)
+            | (Q(source__reuse_status=ResearchSource.ReuseStatus.PERMITTED)
+               & ~Q(source__reuse_notes=""))
+        )
+    )
+
+
 def price_summaries_for_device(
     device_id,
     *,
@@ -76,23 +105,9 @@ def price_summaries_for_device(
     if timezone.is_naive(now):
         raise ValueError("as_of must be timezone-aware")
     normalized_city = (city or "").strip().casefold()
-    earliest = now - timedelta(days=max(FRESHNESS_DAYS.values()))
-
     qs = (
-        MarketPriceObservation.objects.filter(
-            variant__device_id=device_id,
-            variant__device__is_published=True,
-            verification_status=ReviewStatus.VERIFIED,
-            reviewed_at__isnull=False,
-            observed_at__gte=earliest,
-            observed_at__lte=now,
-        )
-        .exclude(listing_status=MarketPriceObservation.ListingStatus.ENDED)
-        .filter(
-            Q(source__isnull=True)
-            | (Q(source__reuse_status=ResearchSource.ReuseStatus.PERMITTED)
-               & ~Q(source__reuse_notes=""))
-        )
+        eligible_price_observations(as_of=now)
+        .filter(variant__device_id=device_id, variant__device__is_published=True)
         .select_related("source")
         .order_by("-observed_at", "-id")
     )
@@ -113,6 +128,8 @@ def price_summaries_for_device(
         if observation.observed_at < now - timedelta(days=FRESHNESS_DAYS[observation.condition]):
             continue
         if observation.source_id is None and not observation.notes.strip():
+            continue
+        if observation.source_id is not None and not observation.source.reuse_notes.strip():
             continue
         clean_city = observation.city.strip()
         if normalized_city and clean_city.casefold() != normalized_city:
