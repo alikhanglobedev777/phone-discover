@@ -122,6 +122,8 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "recommendations": os.getenv("RECOMMENDATION_RATE_LIMIT", "30/hour"),
         "catalog_search": os.getenv("CATALOG_SEARCH_RATE_LIMIT", "120/hour"),
+        "conversation": os.getenv("CONVERSATION_RATE_LIMIT", "15/hour"),
+        "gemini_research": os.getenv("GEMINI_RESEARCH_RATE_LIMIT", "3/hour"),
     },
 }
 
@@ -140,3 +142,7 @@ GEMINI_OPENAI_BASE_URL = os.getenv(
     "https://generativelanguage.googleapis.com/v1beta/openai/",
 )
 RECOMMENDATION_QUERY_RETENTION_DAYS = int(os.getenv("RECOMMENDATION_QUERY_RETENTION_DAYS", "90"))
+
+# Research is paid/externally networked: disabled by default, even with an API key.
+GEMINI_WEB_RESEARCH_ENABLED = os.getenv("GEMINI_WEB_RESEARCH_ENABLED", "0").lower() in {"1", "true", "yes"}
+CONVERSATION_RETENTION_DAYS = int(os.getenv("CONVERSATION_RETENTION_DAYS", "7"))

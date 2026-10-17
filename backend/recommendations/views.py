@@ -1,11 +1,14 @@
 from rest_framework import status
+from rest_framework.throttling import SimpleRateThrottle
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from .models import RecommendationQuery
+from .conversation import build_conversation_criteria, previous_context, store_context, forget_context, RESET_PATTERN
+from .gemini_research import research_with_gemini
 from .providers import explain_recommendation
-from .serializers import RecommendationRequestSerializer, PakistanRecommendationSerializer
+from .serializers import RecommendationRequestSerializer, PakistanRecommendationSerializer, ConversationRequestSerializer
 from .local_rank import interpret_local_request, rank_pakistan_phones, local_explanation
 from .services import (
     build_criteria,
@@ -104,3 +107,77 @@ class PakistanLocalRecommendationView(APIView):
             "response_source": "deterministic",
             "research_executed": False,
         })
+
+
+class GeminiResearchThrottle(SimpleRateThrottle):
+    scope = "gemini_research"
+
+    def get_cache_key(self, request, view):
+        return self.cache_format % {"scope": self.scope, "ident": self.get_ident(request)}
+
+
+class PakistanConversationView(APIView):
+    """Guest bearer-UUID context + DB-first ranking; optional bounded Google Search."""
+
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "conversation"
+
+    def post(self, request):
+        serializer = ConversationRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated = serializer.validated_data
+        use_memory = validated["use_memory"]
+        supplied_fields = set(request.data.keys())
+        reset = validated["reset_context"] or bool(RESET_PATTERN.search(validated["message"]))
+        previous = (previous_context(validated["session_id"])
+                    if use_memory and not reset else {})
+        try:
+            criteria = build_conversation_criteria(validated, supplied_fields, previous)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        summary = rank_pakistan_phones(criteria)
+        explanation = local_explanation(criteria, summary)
+        if use_memory:
+            store_context(criteria)
+        research = {"status": "not_requested", "summary": "", "sources": [],
+                    "notice": "External research was not requested."}
+        if validated["research"]:
+            if not summary["needs_research"]:
+                research["status"] = "not_needed"
+                research["notice"] = "Local evidence is currently sufficient for this shortlist."
+            else:
+                throttle = GeminiResearchThrottle()
+                if not throttle.allow_request(request, self):
+                    research["status"] = "rate_limited"
+                    research["notice"] = "Research request limit reached; the local shortlist is still available."
+                else:
+                    research = research_with_gemini(criteria)
+        results = summary["results"]
+        # Preserve existing analytics/retention behavior; never store provider output.
+        query = RecommendationQuery.objects.create(
+            session_id=criteria["session_id"], query_text=criteria["message"][:500],
+            country_code="PK", currency="PKR", budget=criteria.get("budget_pkr"),
+            priorities=criteria["priorities"], criteria=json_ready(criteria),
+            results=results, result_count=len(results), response_source="deterministic",
+        )
+        return Response({
+            "query_id": str(query.pk), "session_id": str(criteria["session_id"]),
+            "memory_enabled": use_memory, "memory_used": bool(previous),
+            "criteria": json_ready(criteria), **summary, "explanation": explanation,
+            "response_source": "deterministic",
+            "research_requested": validated["research"],
+            "research_executed": research["status"] == "grounded_preview",
+            "research": research,
+        })
+
+
+class ConversationForgetView(APIView):
+    """The UUID is an opaque bearer handle; DELETE is intentionally idempotent."""
+
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "conversation"
+
+    def delete(self, request, session_id):
+        forget_context(session_id)
+        return Response(status=status.HTTP_204_NO_CONTENT)
