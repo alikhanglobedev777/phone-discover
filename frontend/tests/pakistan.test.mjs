@@ -12,10 +12,11 @@ test("PKR only, without inventing a foreign exchange rate", () => {
 
 test("only explicit updates are sent to a continuing conversation", () => {
   const payload = conversationPayload("opaque-uuid", "Samsung mein batao", false, {});
-  assert.deepEqual(payload, { session_id: "opaque-uuid", message: "Samsung mein batao", research: false });
+  assert.deepEqual(payload, { session_id: "opaque-uuid", message: "Samsung mein batao", research: false, guidance: false });
   assert.ok(!("priorities" in payload));
+  assert.equal(conversationPayload("session", "camera?", false, {}, true).guidance, true);
   assert.deepEqual(conversationPayload("opaque-uuid", "used PTA", true, { condition: "used", pta_status: "approved", budget_pkr: "80000" }), {
-    session_id: "opaque-uuid", message: "used PTA", research: true,
+    session_id: "opaque-uuid", message: "used PTA", research: true, guidance: false,
     condition: "used", pta_status: "approved", budget_pkr: "80000",
   });
 });
@@ -54,6 +55,7 @@ test("public conversation POST sends no research without explicit opt-in", async
     await converse(conversationPayload("session", "80k Lahore", false, {}));
     assert.equal(received.url, "/api/recommendations/converse/");
     assert.equal(JSON.parse(received.opts.body).research, false);
+    assert.equal(JSON.parse(received.opts.body).guidance, false);
     assert.equal(received.opts.credentials, "same-origin");
   } finally { globalThis.fetch = oldFetch; }
 });

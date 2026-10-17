@@ -50,6 +50,12 @@ export type LocalResult = {
   missing_score_evidence: string[];
 };
 
+export type GeminiGuidance = {
+  status: "not_requested" | "not_needed" | "disabled" | "rate_limited" | "unavailable" | "generated";
+  text: string;
+  notice: string;
+};
+
 export type ResearchPreview = {
   status: string;
   summary: string;
@@ -61,6 +67,7 @@ export type ConversationRequest = {
   session_id: string;
   message: string;
   research: boolean;
+  guidance: boolean;
   budget_pkr?: string;
   condition?: string;
   pta_status?: string;
@@ -84,6 +91,7 @@ export type ConversationResponse = {
   research_reason: string | null;
   research_executed: boolean;
   research: ResearchPreview;
+  guidance: GeminiGuidance;
 };
 
 export type MarketSearchFilters = {
@@ -161,11 +169,12 @@ export function conversationPayload(
   sessionId: string,
   message: string,
   research: boolean,
-  pending: Partial<Omit<ConversationRequest, "session_id" | "message" | "research">>,
+  pending: Partial<Omit<ConversationRequest, "session_id" | "message" | "research" | "guidance">>,
+  guidance = false,
 ): ConversationRequest {
   // Do not retransmit defaults (or stale controls) on later turns: the server
   // merges only newly explicit fields into existing session preferences.
-  return { session_id: sessionId, message: message.trim(), research, ...pending };
+  return { session_id: sessionId, message: message.trim(), research, guidance, ...pending };
 }
 
 function csrfHeaders(): Record<string, string> {
