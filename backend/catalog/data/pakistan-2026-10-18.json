@@ -1,0 +1,56 @@
+{
+  "observed_at": "2026-10-17T20:40:35Z",
+  "review_notes": "Product pages opened and factual prices/variants checked by Codex at the user's request on 18 October 2026 (Asia/Karachi). Website asking prices only; stock, local-city availability, camera quality and handset PTA status are not independently verified. WhatMobile prices are national reference prices, not seller offers.",
+  "reuse_notes": "Limited factual price and specification excerpts for the user-requested local catalog, attributed to the linked product pages. No descriptions, reviews, photographs or personal contact details copied. This records the basis for this limited use, not a publisher license or permission for bulk redistribution.",
+  "devices": [
+    {
+      "brand": "Samsung", "name": "Galaxy A16", "slug": "samsung-galaxy-a16",
+      "primary_image_url": "https://www.whatmobile.com.pk/admin/images/Samsung/SamsungGalaxyA16-b.jpg",
+      "operating_system": "Android 14", "ram_gb": 6, "storage_gb": 128,
+      "chipset": "MediaTek Helio G99", "battery_mah": 5000, "display_refresh_hz": 90,
+      "specifications": {"Display": "6.7-inch AMOLED, 90 Hz", "Rear cameras": "50 MP main, 5 MP ultrawide, 2 MP macro", "Front camera": "13 MP"},
+      "prices": [{"publisher": "WhatMobile", "url": "https://www.whatmobile.com.pk/Samsung_Galaxy-A16", "price_pkr": "54999.00", "listing_status": "unknown"}]
+    },
+    {
+      "brand": "Samsung", "name": "Galaxy A26", "slug": "samsung-galaxy-a26",
+      "primary_image_url": "https://www.whatmobile.com.pk/admin/images/Samsung/SamsungGalaxyA26-b.jpg",
+      "operating_system": "Android 15", "ram_gb": 8, "storage_gb": 256,
+      "chipset": "Exynos 1380", "battery_mah": 5000, "display_refresh_hz": 120,
+      "specifications": {"Display": "6.7-inch AMOLED, 120 Hz", "Rear cameras": "50 MP main with OIS, 8 MP ultrawide, 2 MP macro", "Front camera": "13 MP"},
+      "prices": [
+        {"publisher": "WhatMobile", "url": "https://www.whatmobile.com.pk/Samsung_Galaxy-A26", "price_pkr": "94999.00", "listing_status": "unknown"},
+        {"publisher": "PriceOye", "url": "https://priceoye.pk/mobiles/samsung/samsung-galaxy-a26-5g", "price_pkr": "87999.00", "listing_status": "ended", "note": "Product page explicitly marked DISCONTINUED; excluded from eligible prices."}
+      ]
+    },
+    {
+      "brand": "Samsung", "name": "Galaxy A36", "slug": "samsung-galaxy-a36",
+      "primary_image_url": "https://www.whatmobile.com.pk/admin/images/Samsung/SamsungGalaxyA36-b.jpg",
+      "operating_system": "Android 15", "ram_gb": 8, "storage_gb": 256,
+      "chipset": "Snapdragon 6 Gen 3", "battery_mah": 5000, "display_refresh_hz": 120,
+      "specifications": {"Display": "6.7-inch AMOLED, 120 Hz", "Rear cameras": "50 MP main with OIS, 8 MP ultrawide, 5 MP macro", "Front camera": "12 MP"},
+      "prices": [
+        {"publisher": "WhatMobile", "url": "https://www.whatmobile.com.pk/Samsung_Galaxy-A36", "price_pkr": "119999.00", "listing_status": "unknown"},
+        {"publisher": "PriceOye", "url": "https://priceoye.pk/mobiles/samsung/samsung-galaxy-a36-5g", "price_pkr": "129999.00", "listing_status": "unknown"}
+      ]
+    },
+    {
+      "brand": "Xiaomi", "name": "Redmi Note 14", "slug": "xiaomi-redmi-note-14",
+      "primary_image_url": "https://www.whatmobile.com.pk/admin/images/Xiaomi/XiaomiRedmiNote14-b.jpg",
+      "operating_system": "Android 14", "ram_gb": 8, "storage_gb": 128,
+      "chipset": "MediaTek Helio G99 Ultra", "battery_mah": 5500, "display_refresh_hz": 120,
+      "specifications": {"Display": "6.7-inch AMOLED, 120 Hz", "Rear cameras": "108 MP main, 2 MP macro, 2 MP depth", "Front camera": "20 MP"},
+      "prices": [{"publisher": "WhatMobile", "url": "https://www.whatmobile.com.pk/Xiaomi_Redmi-Note-14", "price_pkr": "57999.00", "listing_status": "unknown"}]
+    },
+    {
+      "brand": "Infinix", "name": "Hot 60 Pro", "slug": "infinix-hot-60-pro",
+      "primary_image_url": "https://www.whatmobile.com.pk/admin/images/Infinix/InfinixHot60Pro-b.jpg",
+      "operating_system": "Android 15", "ram_gb": 8, "storage_gb": 128,
+      "chipset": "MediaTek Helio G200", "battery_mah": 5160, "display_refresh_hz": 144,
+      "specifications": {"Display": "6.78-inch AMOLED, 144 Hz", "Rear camera": "50 MP main", "Front camera": "13 MP"},
+      "prices": [
+        {"publisher": "WhatMobile", "url": "https://www.whatmobile.com.pk/Infinix_Hot-60-Pro", "price_pkr": "77999.00", "listing_status": "unknown"},
+        {"publisher": "PriceOye", "url": "https://priceoye.pk/mobiles/infinix/infinix-hot-60-pro", "price_pkr": "66495.00", "listing_status": "unknown"}
+      ]
+    }
+  ]
+}

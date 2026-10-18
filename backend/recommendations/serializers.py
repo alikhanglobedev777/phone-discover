@@ -2,6 +2,8 @@ import uuid
 
 from rest_framework import serializers
 
+from catalog.models import MarketPriceObservation
+
 
 PRIORITY_CHOICES = ("camera", "gaming", "battery", "display", "value")
 
@@ -75,3 +77,70 @@ class RecommendationRequestSerializer(serializers.Serializer):
                 "The same brand cannot be both preferred and excluded."
             )
         return attrs
+
+
+class PakistanRecommendationSerializer(serializers.Serializer):
+    """Validated inputs for the DB-first Pakistani recommendation endpoint.
+
+    Absent fields are interpreted from the user's message. Explicit filters
+    take precedence. No web browsing, Gemini calls or writes to catalog data.
+    """
+
+    session_id = serializers.UUIDField(required=False, default=uuid.uuid4)
+    message = serializers.CharField(max_length=1000)
+    budget_pkr = serializers.DecimalField(
+        max_digits=12, decimal_places=2, required=False, min_value=0,
+    )
+    condition = serializers.ChoiceField(
+        choices=MarketPriceObservation.Condition.choices,
+        required=False,
+    )
+    grade = serializers.ChoiceField(
+        choices=MarketPriceObservation.Grade.choices,
+        required=False,
+    )
+    pta_status = serializers.ChoiceField(
+        choices=MarketPriceObservation.PTAStatus.choices,
+        required=False,
+    )
+    pta_verification = serializers.ChoiceField(
+        choices=MarketPriceObservation.PTAVerification.choices,
+        required=False,
+    )
+    city = serializers.CharField(max_length=100, required=False)
+    brand = serializers.SlugField(max_length=140, required=False)
+    priorities = serializers.ListField(
+        child=serializers.ChoiceField(choices=PRIORITY_CHOICES),
+        required=False, allow_empty=False, max_length=5,
+    )
+    ram_min = serializers.IntegerField(required=False, min_value=1, max_value=1024)
+    storage_min = serializers.IntegerField(required=False, min_value=1, max_value=65536)
+    strict_budget = serializers.BooleanField(default=True)
+    max_results = serializers.IntegerField(default=3, min_value=1, max_value=5)
+
+    def validate(self, attrs):
+        if attrs.get("grade") and attrs.get("condition") not in (
+            "used", "refurbished", None,
+        ):
+            raise serializers.ValidationError({"grade": "Grade requires used or refurbished condition."})
+        if attrs.get("pta_verification") == "checked" and attrs.get("pta_status") == "unknown":
+            raise serializers.ValidationError({"pta_status": "Checked PTA status cannot be unknown."})
+        return attrs
+
+
+class ConversationRequestSerializer(PakistanRecommendationSerializer):
+    """Opt-in research and per-session structured preference memory."""
+
+    use_memory = serializers.BooleanField(default=True)
+    reset_context = serializers.BooleanField(default=False)
+    research = serializers.BooleanField(default=False)
+    guidance = serializers.BooleanField(default=False)
+
+    def get_fields(self):
+        fields = super().get_fields()
+        # A cleared control explicitly removes remembered preferences.
+        for key in ("budget_pkr", "condition", "grade", "pta_status", "pta_verification",
+                    "city", "brand", "ram_min", "storage_min"):
+            fields[key].allow_null = True
+        fields["priorities"].allow_empty = True
+        return fields
