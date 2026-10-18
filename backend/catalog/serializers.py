@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from rest_framework import serializers
 
 from .pricing import price_summaries_for_device
@@ -88,6 +90,7 @@ class DeviceListSerializer(serializers.ModelSerializer):
             "name",
             "slug",
             "summary",
+            "data_source",
             "status",
             "release_date",
             "operating_system",
@@ -107,7 +110,12 @@ class DeviceListSerializer(serializers.ModelSerializer):
             default=None,
         )
         if not offer:
-            return None
+            summaries = price_summaries_for_device(obj.id)
+            if not summaries:
+                return None
+            best = min(summaries, key=lambda item: Decimal(item["observed_min_pkr"]))
+            return {"price": best["observed_min_pkr"], "currency": "PKR", "country_code": "PK",
+                    "evidence_type": best["evidence_type"]}
         return {"price": str(offer.price), "currency": offer.currency, "country_code": offer.country_code}
 
 

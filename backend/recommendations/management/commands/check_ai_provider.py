@@ -1,6 +1,7 @@
 from django.core.management.base import BaseCommand, CommandError
 
 from recommendations.providers import get_provider_status, test_provider_connection
+from recommendations.provider_config import public_provider_status
 
 
 class Command(BaseCommand):
@@ -20,6 +21,11 @@ class Command(BaseCommand):
         self.stdout.write(f"Requested mode: {status['requested']}")
         self.stdout.write(f"Active mode: {status['active']}")
         self.stdout.write("API key loaded: yes" if status["active"] != "deterministic" else "API key loaded: no")
+        routing = public_provider_status()
+        self.stdout.write(f"Search provider: {routing['search_provider']}")
+        self.stdout.write(f"Automatic research: {'on' if routing['automatic_research'] else 'off'}")
+        if routing["configuration_error"]:
+            raise CommandError(routing["configuration_error"])
 
         if options["live"] and status["active"] != "deterministic":
             self.stdout.write("Checking provider connection...")
@@ -28,6 +34,6 @@ class Command(BaseCommand):
             except Exception as exc:
                 raise CommandError(
                     "Provider connection failed. Check the key, model, quota, and internet connection. "
-                    f"Details: {exc}"
+                    f"Error type: {type(exc).__name__}"
                 ) from exc
             self.stdout.write(self.style.SUCCESS(result))

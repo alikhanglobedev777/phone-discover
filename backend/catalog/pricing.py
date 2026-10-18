@@ -52,11 +52,12 @@ def _price_string(value):
 
 
 def eligible_price_observations(*, as_of=None):
-    """Reusable, read-only verified/fresh/permission-gated price queryset.
+    """Reusable, read-only fresh price queryset with explicit evidence status.
 
     Each condition has a distinct freshness window. Manual entries still need
     nonempty notes (checked by consumers after fetching); linked records must
     have a permitted source with a documented reuse basis.
+    Automated web observations remain web_reported, with no human review time.
     """
     now = as_of if as_of is not None else timezone.now()
     if timezone.is_naive(now):
@@ -67,9 +68,11 @@ def eligible_price_observations(*, as_of=None):
     return (
         MarketPriceObservation.objects.filter(
             freshness,
-            verification_status=ReviewStatus.VERIFIED,
-            reviewed_at__isnull=False,
             observed_at__lte=now,
+        )
+        .filter(
+            Q(verification_status=ReviewStatus.VERIFIED, reviewed_at__isnull=False)
+            | Q(verification_status="web_reported", source__isnull=False)
         )
         .exclude(listing_status=MarketPriceObservation.ListingStatus.ENDED)
         .filter(
@@ -179,7 +182,7 @@ def price_summaries_for_device(
                 "currency": "PKR",
                 "observation_count": len(observations),
                 "source_count": len(sources),
-                "evidence_type": "linked_sources" if sources else "admin_documented",
+                "evidence_type": "web_researched" if any(o.verification_status == "web_reported" for o in observations) else "linked_sources" if sources else "admin_documented",
                 "observed_min_pkr": _price_string(observed_low),
                 "observed_max_pkr": _price_string(observed_high),
                 "median_observed_midpoint_pkr": _price_string(median(midpoints)),

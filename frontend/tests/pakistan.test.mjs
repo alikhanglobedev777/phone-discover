@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  conversationPayload, formatPkr, formatPriceRange, marketQuery, safeSourceUrl,
+  activeFilterSummary, conversationPayload, formatPkr, formatPriceRange, marketQuery, safeSourceUrl,
 } from "../src/lib/pakistan.ts";
 
 test("PKR only, without inventing a foreign exchange rate", () => {
@@ -31,6 +31,25 @@ test("market search keeps filters and pagination on strict evidence-backed endpo
   assert.equal(query.get("budget_pkr"), "80000");
   assert.equal(query.get("city"), "Lahore");
   assert.equal(query.get("pta_verification"), "checked");
+});
+
+test("cleared controls and complete-search reset reach the server explicitly", () => {
+  const payload = conversationPayload("session", "show phones", false, {
+    city: null, pta_status: null, budget_pkr: null, ram_min: null, priorities: [], reset_context: true,
+  });
+  const sent = JSON.parse(JSON.stringify(payload));
+  assert.equal(sent.city, null);
+  assert.equal(sent.pta_status, null);
+  assert.equal(sent.reset_context, true);
+  assert.deepEqual(sent.priorities, []);
+});
+
+test("active filters reveal remembered constraints and omit cleared values", () => {
+  const summary = activeFilterSummary({budget_pkr: "120000", city: "Karachi", condition: "box_pack", pta_status: "approved", ram_min: null, priorities: ["camera"]});
+  assert.match(summary, /City: Karachi/);
+  assert.match(summary, /PTA: approved/);
+  assert.match(summary, /Condition: box pack/);
+  assert.ok(!summary.includes("Minimum RAM"));
 });
 
 test("external citations use https domain names, never localhost/credentials/script schemes", () => {

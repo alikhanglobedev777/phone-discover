@@ -148,6 +148,25 @@ def parse_pakistan_intent(message: str) -> dict:
     if model:
         suffix = " ".join(word.capitalize() for word in (model.group(2) or "").split())
         result["device_query"] = f"iPhone {model.group(1)}" + (f" {suffix}" if suffix else "")
+    else:
+        # Model lookups must miss locally and trigger discovery rather than
+        # quietly returning unrelated phones from the same brand.
+        patterns = (
+            ("samsung", r"\b(?:samsung\s+)?galaxy\s+([asfmz]\d{1,3}(?:\s+(?:ultra|plus|fe|5g))*)\b", "Galaxy "),
+            ("samsung", r"\bsamsung\s+([asfmz]\d{1,3}(?:\s+(?:ultra|plus|fe|5g))*)\b", "Galaxy "),
+            ("xiaomi", r"\b(?:xiaomi\s+)?redmi\s+(note\s+\d{1,2}(?:\s+(?:pro|plus|5g))*)\b", "Redmi "),
+            ("infinix", r"\binfinix\s+((?:note|hot|zero)\s+\d{1,3}(?:\s+(?:pro|plus|5g))*)\b", ""),
+            ("tecno", r"\btecno\s+((?:camon|spark|pova)\s+\d{1,3}(?:\s+(?:pro|plus|5g))*)\b", ""),
+            ("vivo", r"\bvivo\s+([vyt]\d{1,3}(?:\s+(?:pro|plus|lite|5g))*)\b", ""),
+            ("oppo", r"\boppo\s+((?:a\d{1,3}|reno\s*\d{1,2})(?:\s+(?:pro|plus|5g))*)\b", ""),
+            ("realme", r"\brealme\s+((?:c\d{1,3}|\d{1,2})(?:\s+(?:pro|plus|5g))*)\b", ""),
+        )
+        for brand, pattern, prefix in patterns:
+            exact = re.search(pattern, text)
+            if exact:
+                result["brand"] = brand
+                result["device_query"] = prefix + exact.group(1).title()
+                break
 
     result["response_language"] = (
         "roman_urdu" if re.search(r"\b(?:mujhe|chahiye|batao|btao|wala|wali|tak|mein|kaunsa|konsa|sabse)\b", text)

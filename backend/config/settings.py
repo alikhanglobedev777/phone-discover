@@ -159,7 +159,7 @@ REST_FRAMEWORK = {
         "recommendations": os.getenv("RECOMMENDATION_RATE_LIMIT", "30/hour"),
         "catalog_search": os.getenv("CATALOG_SEARCH_RATE_LIMIT", "120/hour"),
         "conversation": os.getenv("CONVERSATION_RATE_LIMIT", "15/hour"),
-        "gemini_research": os.getenv("GEMINI_RESEARCH_RATE_LIMIT", "3/hour"),
+        "gemini_research": os.getenv("GEMINI_RESEARCH_RATE_LIMIT", "12/hour"),
         "gemini_guidance": os.getenv("GEMINI_GUIDANCE_RATE_LIMIT", "6/hour"),
         "research_job_status": os.getenv("RESEARCH_JOB_STATUS_RATE_LIMIT", "120/hour"),
     },
@@ -170,10 +170,19 @@ OPENAI_CHAT_MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-5.6-luna")
 OPENAI_REASONING_MODEL = os.getenv("OPENAI_REASONING_MODEL", "gpt-5.6-terra")
 OPENAI_EMBEDDING_MODEL = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
 AI_PROVIDER = os.getenv("AI_PROVIDER", "auto").strip().lower()
+API_PROVIDER = os.getenv("API_PROVIDER", "auto").strip().lower()
+API_KEY = os.getenv("API_KEY", "")
+AI_MODEL = os.getenv("AI_MODEL", "").strip()
+WEB_SEARCH_PROVIDER = os.getenv("WEB_SEARCH_PROVIDER", "auto").strip().lower()
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
+WEB_RESEARCH_ENABLED = (os.environ["WEB_RESEARCH_ENABLED"].lower() in {"1", "true", "yes"}
+                        if "WEB_RESEARCH_ENABLED" in os.environ else None)
+AUTO_WEB_RESEARCH_ENABLED = (os.environ["AUTO_WEB_RESEARCH_ENABLED"].lower() in {"1", "true", "yes"}
+                             if "AUTO_WEB_RESEARCH_ENABLED" in os.environ else None)
 AI_REQUEST_TIMEOUT_SECONDS = float(os.getenv("AI_REQUEST_TIMEOUT_SECONDS", "15"))
 AI_MAX_RETRIES = int(os.getenv("AI_MAX_RETRIES", "1"))
 AI_MAX_OUTPUT_TOKENS = int(os.getenv("AI_MAX_OUTPUT_TOKENS", "320"))
-GEMINI_GUIDANCE_TIMEOUT_SECONDS = float(os.getenv("GEMINI_GUIDANCE_TIMEOUT_SECONDS", "35"))
+GEMINI_GUIDANCE_TIMEOUT_SECONDS = float(os.getenv("AI_GUIDANCE_TIMEOUT_SECONDS", os.getenv("GEMINI_GUIDANCE_TIMEOUT_SECONDS", "35")))
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_CHAT_MODEL = os.getenv("GEMINI_CHAT_MODEL", "gemini-3.8-flash")
 GEMINI_OPENAI_BASE_URL = os.getenv(
@@ -184,6 +193,13 @@ RECOMMENDATION_QUERY_RETENTION_DAYS = int(os.getenv("RECOMMENDATION_QUERY_RETENT
 
 # Research is paid/externally networked: disabled by default, even with an API key.
 GEMINI_WEB_RESEARCH_ENABLED = os.getenv("GEMINI_WEB_RESEARCH_ENABLED", "0").lower() in {"1", "true", "yes"}
+GEMINI_AUTO_RESEARCH_ENABLED = os.getenv("GEMINI_AUTO_RESEARCH_ENABLED", "0").lower() in {"1", "true", "yes"}
+GEMINI_RESEARCH_TIMEOUT_SECONDS = float(os.getenv("WEB_RESEARCH_TIMEOUT_SECONDS", os.getenv("GEMINI_RESEARCH_TIMEOUT_SECONDS", "60")))
+GEMINI_RESEARCH_SOURCE_DOMAINS = tuple(
+    domain.strip().lower() for domain in os.getenv("WEB_RESEARCH_SOURCE_DOMAINS", os.getenv(
+        "GEMINI_RESEARCH_SOURCE_DOMAINS", "whatmobile.com.pk,priceoye.pk"
+    )).split(",") if domain.strip()
+)
 CONVERSATION_RETENTION_DAYS = int(os.getenv("CONVERSATION_RETENTION_DAYS", "7"))
 
 # Patch 10: admin-triggered queue, opt-in to external provider charges.

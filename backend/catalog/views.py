@@ -7,6 +7,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from .filters import DeviceFilter
+from .availability import catalog_availability
 from .models import Brand, Device
 from .pricing import PRICE_GUIDE_DISCLAIMER, price_summaries_for_device
 from .search import search_local_catalog
@@ -77,3 +78,14 @@ class CatalogSearchView(APIView):
         query = CatalogSearchQuerySerializer(data=request.query_params)
         query.is_valid(raise_exception=True)
         return Response(search_local_catalog(query.validated_data))
+
+
+class CatalogStatusView(APIView):
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "catalog_search"
+
+    def get(self, request):
+        from recommendations.provider_config import public_provider_status
+        return Response({"catalog_status": catalog_availability(),
+                         **public_provider_status()})

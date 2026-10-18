@@ -5,6 +5,7 @@ from django.conf import settings
 from openai import OpenAI
 
 from .services import deterministic_explanation, json_ready
+from .provider_config import ai_selection, global_provider, key_for, model_for
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +21,8 @@ SYSTEM_INSTRUCTIONS = (
 
 def get_provider_status() -> dict:
     requested = str(getattr(settings, "AI_PROVIDER", "auto") or "auto").strip().lower()
+    if global_provider() is not None:
+        requested = ai_selection()
     if requested not in SUPPORTED_PROVIDERS:
         logger.warning("Unknown AI_PROVIDER '%s'; using deterministic recommendations.", requested)
         return {
@@ -30,8 +33,8 @@ def get_provider_status() -> dict:
             "label": f"Deterministic fallback (unknown provider: {requested})",
         }
 
-    gemini_key = str(getattr(settings, "GEMINI_API_KEY", "") or "").strip()
-    openai_key = str(getattr(settings, "OPENAI_API_KEY", "") or "").strip()
+    gemini_key = key_for("gemini")
+    openai_key = key_for("openai")
 
     if requested == "auto":
         if gemini_key:
@@ -60,7 +63,7 @@ def get_provider_status() -> dict:
             "label": "Deterministic fallback (OpenAI key is missing)",
         }
     if active == "gemini":
-        model = getattr(settings, "GEMINI_CHAT_MODEL", "gemini-3.8-flash")
+        model = model_for("gemini")
         return {
             "requested": requested,
             "active": active,
@@ -69,7 +72,7 @@ def get_provider_status() -> dict:
             "label": f"Gemini ({model})",
         }
     if active == "openai":
-        model = getattr(settings, "OPENAI_CHAT_MODEL", "gpt-5.6-luna")
+        model = model_for("openai")
         return {
             "requested": requested,
             "active": active,
@@ -95,14 +98,14 @@ def _client_options() -> dict:
 
 def _openai_client() -> OpenAI:
     return OpenAI(
-        api_key=settings.OPENAI_API_KEY,
+        api_key=key_for("openai"),
         **_client_options(),
     )
 
 
 def _gemini_client() -> OpenAI:
     return OpenAI(
-        api_key=settings.GEMINI_API_KEY,
+        api_key=key_for("gemini"),
         base_url=getattr(
             settings,
             "GEMINI_OPENAI_BASE_URL",
@@ -130,7 +133,7 @@ def _explain_with_openai(
     safety_identifier: str,
 ) -> str:
     request = {
-        "model": settings.OPENAI_CHAT_MODEL,
+        "model": model_for("openai"),
         "instructions": SYSTEM_INSTRUCTIONS,
         "input": _request_payload(message, criteria, results),
         "store": False,
@@ -165,7 +168,7 @@ def _message_content(response) -> str:
 
 def _explain_with_gemini(message: str, criteria: dict, results: list[dict]) -> str:
     response = _gemini_client().chat.completions.create(
-        model=settings.GEMINI_CHAT_MODEL,
+        model=model_for("gemini"),
         messages=[
             {"role": "system", "content": SYSTEM_INSTRUCTIONS},
             {"role": "user", "content": _request_payload(message, criteria, results)},
@@ -198,11 +201,8 @@ def explain_recommendation(
                 safety_identifier,
             )
         return explanation or fallback, provider
-    except Exception:
-        logger.exception(
-            "%s recommendation explanation failed; using deterministic fallback.",
-            provider.title(),
-        )
+    except Exception as exc:
+        logger.warning("%s explanation unavailable (%s); using local explanation.", provider.title(), type(exc).__name__)
         return fallback, "deterministic"
 
 

@@ -6,7 +6,8 @@ from django.utils import timezone
 
 from catalog.models import DeviceVariant
 from catalog.research_ingestion import stage_grounded_price_leads
-from .gemini_research import research_with_gemini
+from .research_providers import research_preview as research_with_gemini
+from .provider_config import research_available
 from .models import ResearchJob
 
 
@@ -17,8 +18,7 @@ def run_research_job(job_id):
         job = ResearchJob.objects.select_for_update().filter(pk=job_id).first()
         if job is None or job.status != ResearchJob.Status.QUEUED:
             return
-        if not (settings.RESEARCH_JOB_QUEUE_ENABLED and settings.GEMINI_WEB_RESEARCH_ENABLED
-                and settings.GEMINI_API_KEY):
+        if not (settings.RESEARCH_JOB_QUEUE_ENABLED and research_available()):
             job.status = ResearchJob.Status.FAILED
             job.notice = "Research integration is disabled."
             job.finished_at = timezone.now()
@@ -37,7 +37,8 @@ def run_research_job(job_id):
             filters["device__brand__slug"] = criteria["brand"]
         available = DeviceVariant.objects.filter(**filters).select_related("device").order_by("id")[:24]
         criteria["catalog_variants"] = [
-            {"device_slug": v.device.slug, "variant_name": v.name}
+            {"device_slug": v.device.slug, "variant_name": v.name,
+             "ram_gb": v.ram_gb, "storage_gb": v.storage_gb}
             for v in available
         ]
         response = research_with_gemini(criteria, structured=True)

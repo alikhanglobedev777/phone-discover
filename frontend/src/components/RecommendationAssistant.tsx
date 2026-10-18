@@ -1,9 +1,10 @@
 import { useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  converse, conversationPayload, forgetConversation, formatPriceRange, safeSourceUrl,
+  activeFilterSummary, catalogStatus, converse, conversationPayload, forgetConversation, formatPriceRange, safeSourceUrl,
 } from "../lib/pakistan";
-import type { ConversationRequest, LocalResult, ResearchPreview, GeminiGuidance } from "../lib/pakistan";
+import type { ConversationRequest, LocalResult, ResearchPreview, AIGuidance } from "../lib/pakistan";
 
 type Props = {
   onOpenDevice: (slug: string) => void;
@@ -17,8 +18,10 @@ type ChatMessage = {
   results?: LocalResult[];
   needsResearch?: boolean;
   research?: ResearchPreview;
-  guidance?: GeminiGuidance;
+  guidance?: AIGuidance;
   memoryUsed?: boolean;
+  filters?: string;
+  references?: { results: LocalResult[]; notice: string };
 };
 
 type EditableFilters = Partial<Omit<ConversationRequest, "session_id" | "message" | "research" | "guidance">>;
@@ -47,6 +50,7 @@ function PriceCard({ result, onOpenDevice, onCompareDevice }: {
   onCompareDevice: Props["onCompareDevice"];
 }) {
   const { device, variant, market_price: price } = result;
+  const sourceUrl = safeSourceUrl(price.source_url);
   return (
     <article className="pk-result-card">
       <div className="pk-result-head">
@@ -58,11 +62,13 @@ function PriceCard({ result, onOpenDevice, onCompareDevice }: {
         </div>
       </div>
       <p className="pk-result-meta">{price.condition.replaceAll("_", " ")} · {price.pta_status.replaceAll("_", " ")} · {price.city || "Pakistan"}</p>
+      {price.evidence_type === "web_researched" && <p className="pk-evidence-note"><strong>Web researched · saved to catalog</strong>. Source-reported facts awaiting independent review.</p>}
       <p className="pk-evidence-note">PTA: {price.pta_verification === "checked" ? "independently checked evidence" : "reported or not independently checked"}. Observed {new Date(price.observed_at).toLocaleDateString("en-PK")}; asking price, not a live offer.</p>
       {result.fit_score !== null && <p className="pk-evidence-note">Editorial fit: {result.fit_score.toFixed(0)}/100 (not a probability or independent benchmark)</p>}
       {result.strengths.length > 0 && <p className="pk-result-meta">{result.strengths.join(" · ")}</p>}
       {result.tradeoffs.length > 0 && <p className="pk-evidence-note">Consider: {result.tradeoffs.join(" · ")}</p>}
       <div className="pk-result-actions">
+        {sourceUrl && <a href={sourceUrl} target="_blank" rel="noopener noreferrer">Price source</a>}
         <button type="button" onClick={() => onOpenDevice(device.slug)}>Phone details</button>
         <button type="button" onClick={() => onCompareDevice(device.slug)}>Compare</button>
       </div>
@@ -71,6 +77,9 @@ function PriceCard({ result, onOpenDevice, onCompareDevice }: {
 }
 
 export function RecommendationAssistant({ onOpenDevice, onCompareDevice }: Props) {
+  const queryClient = useQueryClient();
+  const status = useQuery({ queryKey: ["catalog-status"], queryFn: catalogStatus, staleTime: 30_000 });
+  const researchAvailable = status.data?.research_available === true;
   const [sessionId, setSessionId] = useState(uuid);
   const [message, setMessage] = useState("");
   const [budget, setBudget] = useState("");
@@ -98,14 +107,28 @@ export function RecommendationAssistant({ onOpenDevice, onCompareDevice }: Props
   function togglePriority(value: string) {
     const next = priorities.includes(value) ? priorities.filter((entry) => entry !== value) : [...priorities, value];
     setPriorities(next);
-    // The backend does not accept an empty explicit priorities list. Reset the
-    // conversation to clear historical priorities if no priorities remain.
-    setPending((current) => {
-      const updated = { ...current };
-      if (next.length) updated.priorities = next;
-      else delete updated.priorities;
-      return updated;
-    });
+    change("priorities", next);
+  }
+
+  function syncControls(criteria: Record<string, unknown>) {
+    setBudget(String(criteria.budget_pkr ?? ""));
+    setCity(String(criteria.city ?? ""));
+    setCondition(String(criteria.condition ?? ""));
+    setPtaStatus(String(criteria.pta_status ?? ""));
+    setPtaVerification(String(criteria.pta_verification ?? ""));
+    setRamMin(String(criteria.ram_min ?? ""));
+    setStorageMin(String(criteria.storage_min ?? ""));
+    setPriorities(Array.isArray(criteria.priorities) ? criteria.priorities as string[] : []);
+    setStrictBudget(criteria.strict_budget !== false);
+  }
+
+  function choosePrompt(prompt: string, index: number) {
+    setMessage(prompt);
+    // Complete examples start a new search; the brand-only example is a follow-up.
+    if (index < 2) {
+      syncControls({});
+      setPending({ reset_context: true });
+    }
   }
 
   async function newChat() {
@@ -142,13 +165,19 @@ export function RecommendationAssistant({ onOpenDevice, onCompareDevice }: Props
     setMessages((current) => [...current, userMessage]);
     setMessage("");
     try {
-      const response = await converse(conversationPayload(sessionId, text, researchEnabled, explicit, guidanceEnabled), controller.signal);
+      const response = await converse(conversationPayload(sessionId, text, researchEnabled && researchAvailable, explicit, guidanceEnabled), controller.signal);
       if (generation !== generationRef.current) return;
       setPending({});
+      syncControls(response.criteria);
+      if (response.catalog_updated) {
+        void Promise.all(["devices", "brands", "pakistan-market", "catalog-status", "device"].map((key) =>
+          queryClient.invalidateQueries({ queryKey: [key] })));
+      }
       setMessages((current) => [...current, {
         id: response.query_id || uuid(), role: "assistant", text: response.explanation,
         results: response.results, needsResearch: response.needs_research,
         research: response.research, guidance: response.guidance, memoryUsed: response.memory_used,
+        filters: activeFilterSummary(response.criteria), references: response.research.results?.length ? undefined : response.price_references,
       }]);
     } catch (reason) {
       if (generation !== generationRef.current || (reason instanceof Error && reason.name === "AbortError")) return;
@@ -169,7 +198,7 @@ export function RecommendationAssistant({ onOpenDevice, onCompareDevice }: Props
         <div>
           <p className="eyebrow">Phone Discover · Pakistan</p>
           <h2 id="assistant-title">Your phone buying copilot.</h2>
-          <p>Verified local database first. Opt into separate Gemini guidance or grounded web research; neither is a verified Pakistani market listing. Conversation memory stays in this tab.</p>
+          <p>Local catalog first. When no match is found, automatic web research can find phones, save sourced details, and add them to the catalog. Web-researched prices and specifications are labeled. Conversation memory stays in this tab.</p>
         </div>
         <button type="button" className="assistant-new-chat" onClick={() => void newChat()}>New chat + forget</button>
       </header>
@@ -183,39 +212,44 @@ export function RecommendationAssistant({ onOpenDevice, onCompareDevice }: Props
           </div>
           <div className="assistant-two-fields">
             <label className="assistant-field"><span>Maximum budget (PKR)</span>
-              <div className="budget-input"><b>₨</b><input disabled={loading} type="number" min="1" max="999999999" value={budget} placeholder="80000" onChange={(event) => { const value = event.target.value; setBudget(value); if (value) change("budget_pkr", value); else setPending((current) => { const next = { ...current }; delete next.budget_pkr; return next; }); }} /></div>
+              <div className="budget-input"><b>₨</b><input disabled={loading} type="number" min="1" max="999999999" value={budget} placeholder="80000" onChange={(event) => { const value = event.target.value; setBudget(value); if (value) change("budget_pkr", value); else change("budget_pkr", null); }} /></div>
             </label>
-            <label className="assistant-field"><span>City</span><input disabled={loading} type="text" maxLength={100} value={city} placeholder="Lahore" onChange={(event) => { setCity(event.target.value); if (event.target.value.trim()) change("city", event.target.value.trim()); else setPending((current) => { const next = { ...current }; delete next.city; return next; }); }} /></label>
+            <label className="assistant-field"><span>City</span><input disabled={loading} type="text" maxLength={100} value={city} placeholder="Lahore" onChange={(event) => { setCity(event.target.value); if (event.target.value.trim()) change("city", event.target.value.trim()); else change("city", null); }} /></label>
           </div>
           <div className="assistant-two-fields">
-            <label className="assistant-field"><span>Condition</span><select disabled={loading} value={condition} onChange={(event) => { setCondition(event.target.value); if (event.target.value) change("condition", event.target.value); else setPending((current) => { const next = { ...current }; delete next.condition; return next; }); }}><option value="">From message / any</option><option value="box_pack">New / box pack</option><option value="open_box">Open box</option><option value="used">Used</option><option value="refurbished">Refurbished</option></select></label>
-            <label className="assistant-field"><span>PTA status</span><select disabled={loading} value={ptaStatus} onChange={(event) => { setPtaStatus(event.target.value); if (event.target.value) change("pta_status", event.target.value); else setPending((current) => { const next = { ...current }; delete next.pta_status; return next; }); }}><option value="">From message / any</option><option value="approved">PTA approved (reported or checked)</option><option value="non_pta">Non-PTA</option><option value="cpid">CPID (not official approval)</option><option value="patched">Patched (not official approval)</option></select></label>
+            <label className="assistant-field"><span>Condition</span><select disabled={loading} value={condition} onChange={(event) => { setCondition(event.target.value); if (event.target.value) change("condition", event.target.value); else change("condition", null); }}><option value="">From message / any</option><option value="box_pack">New / box pack</option><option value="open_box">Open box</option><option value="used">Used</option><option value="refurbished">Refurbished</option></select></label>
+            <label className="assistant-field"><span>PTA status</span><select disabled={loading} value={ptaStatus} onChange={(event) => { setPtaStatus(event.target.value); if (event.target.value) change("pta_status", event.target.value); else change("pta_status", null); }}><option value="">From message / any</option><option value="approved">PTA approved (reported or checked)</option><option value="non_pta">Non-PTA</option><option value="cpid">CPID (not official approval)</option><option value="patched">Patched (not official approval)</option></select></label>
           </div>
-          <label className="assistant-field"><span>PTA evidence requirement</span><select disabled={loading} value={ptaVerification} onChange={(event) => { setPtaVerification(event.target.value); if (event.target.value) change("pta_verification", event.target.value); else setPending((current) => { const next = { ...current }; delete next.pta_verification; return next; }); }}><option value="">Any available evidence</option><option value="reported">Seller/source reported</option><option value="checked">Independently checked evidence</option></select></label>
+          <label className="assistant-field"><span>PTA evidence requirement</span><select disabled={loading} value={ptaVerification} onChange={(event) => { setPtaVerification(event.target.value); if (event.target.value) change("pta_verification", event.target.value); else change("pta_verification", null); }}><option value="">Any available evidence</option><option value="reported">Seller/source reported</option><option value="checked">Independently checked evidence</option></select></label>
           <div className="assistant-two-fields">
-            <label className="assistant-field"><span>Minimum RAM</span><select disabled={loading} value={ramMin} onChange={(event) => { setRamMin(event.target.value); if (event.target.value) change("ram_min", Number(event.target.value)); else setPending((current) => { const next = { ...current }; delete next.ram_min; return next; }); }}><option value="">Any</option><option value="6">6 GB</option><option value="8">8 GB</option><option value="12">12 GB</option><option value="16">16 GB</option></select></label>
-            <label className="assistant-field"><span>Minimum storage</span><select disabled={loading} value={storageMin} onChange={(event) => { setStorageMin(event.target.value); if (event.target.value) change("storage_min", Number(event.target.value)); else setPending((current) => { const next = { ...current }; delete next.storage_min; return next; }); }}><option value="">Any</option><option value="128">128 GB</option><option value="256">256 GB</option><option value="512">512 GB</option></select></label>
+            <label className="assistant-field"><span>Minimum RAM</span><select disabled={loading} value={ramMin} onChange={(event) => { setRamMin(event.target.value); if (event.target.value) change("ram_min", Number(event.target.value)); else change("ram_min", null); }}><option value="">Any</option><option value="6">6 GB</option><option value="8">8 GB</option><option value="12">12 GB</option><option value="16">16 GB</option></select></label>
+            <label className="assistant-field"><span>Minimum storage</span><select disabled={loading} value={storageMin} onChange={(event) => { setStorageMin(event.target.value); if (event.target.value) change("storage_min", Number(event.target.value)); else change("storage_min", null); }}><option value="">Any</option><option value="128">128 GB</option><option value="256">256 GB</option><option value="512">512 GB</option></select></label>
           </div>
           <label className="strict-budget-toggle"><input type="checkbox" disabled={loading} checked={strictBudget} onChange={(event) => { setStrictBudget(event.target.checked); change("strict_budget", event.target.checked); }} /><span><strong>Strict PKR budget</strong><small>Require observed upper price bound to fit</small></span></label>
-          <label className="strict-budget-toggle"><input type="checkbox" disabled={loading} checked={guidanceEnabled} onChange={(event) => setGuidanceEnabled(event.target.checked)} /><span><strong>Use Gemini general guidance</strong><small>Sends this message (with basic contact redaction) to Google if no eligible local matches. No web search, verified prices or PTA checks.</small></span></label>
-          <label className="strict-budget-toggle"><input type="checkbox" disabled={loading} checked={researchEnabled} onChange={(event) => setResearchEnabled(event.target.checked)} /><span><strong>Request Gemini web research</strong><small>Separate Google Search grounding; requires API quota and opt-in. External sources are unverified.</small></span></label>
-          <div className="quick-prompts"><span>Try asking</span>{QUICK_PROMPTS.map((prompt) => <button type="button" disabled={loading} key={prompt} onClick={() => setMessage(prompt)}>{prompt}</button>)}</div>
+          <label className="strict-budget-toggle"><input type="checkbox" disabled={loading || status.data?.guidance_available === false} checked={guidanceEnabled} onChange={(event) => setGuidanceEnabled(event.target.checked)} /><span><strong>Use AI general guidance</strong><small>{status.data?.guidance_available === false ? "Add a Gemini or OpenAI key to enable AI guidance. Search and catalog features still work." : `Uses ${status.data?.ai_provider || "the configured AI provider"} for general advice when no local matches exist. Prices and PTA claims remain unverified.`}</small></span></label>
+          {status.data?.automatic_research ? <p className="pk-evidence-note"><strong>Automatic web research is on.</strong> Search provider: {status.data.search_provider.replaceAll("_", " ")}. Missing phones are researched and sourced results saved to the catalog.</p> : <label className="strict-budget-toggle"><input type="checkbox" disabled={loading || !researchAvailable} checked={researchEnabled && researchAvailable} onChange={(event) => setResearchEnabled(event.target.checked)} /><span><strong>Request web research</strong><small>{status.isError ? "Could not check web research availability." : status.isPending ? "Checking availability..." : researchAvailable ? "Search external sources with the configured provider." : "Web research is currently disabled or unconfigured."}</small></span></label>}
+          {status.data?.configuration_error && <p className="pk-evidence-note" role="status">{status.data.configuration_error}</p>}
+          <div className="quick-prompts"><span>Try asking (full examples start a new search)</span>{QUICK_PROMPTS.map((prompt, index) => <button type="button" disabled={loading} key={prompt} onClick={() => choosePrompt(prompt, index)}>{prompt}</button>)}</div>
         </aside>
         <div className="assistant-conversation">
+          {status.data?.catalog_status === "empty" && <p className="state-message" role="status">The phone catalog is empty. Local recommendations will appear after phones and Pakistani prices are imported.</p>}
+          {status.data?.catalog_status === "missing_prices" && <p className="state-message" role="status">Catalog phones are available, but their Pakistani price evidence needs adding or refreshing.</p>}
           <div className="chat-stream" aria-live="polite" aria-relevant="additions">
             {messages.map((entry) => <div className={`chat-message chat-${entry.role}`} key={entry.id}>
               <div className="chat-avatar">{entry.role === "assistant" ? "PD" : "You"}</div>
               <div className="chat-bubble">
                 <p>{entry.text}</p>
                 {entry.memoryUsed && <p className="pk-evidence-note">Preferences carried forward from this session.</p>}
+                {entry.filters && <p className="pk-evidence-note">Filters used — {entry.filters}</p>}
+                {!!entry.references?.results.length && <section className="pk-reference-results" aria-label="Price references with unconfirmed city or PTA status"><h3>Price references — city/PTA unconfirmed</h3><p className="pk-evidence-note">{entry.references.notice}</p><div className="pk-result-grid">{entry.references.results.map((result) => <PriceCard key={`${entry.id}-reference-${result.device.slug}`} result={result} onOpenDevice={onOpenDevice} onCompareDevice={onCompareDevice} />)}</div></section>}
                 {entry.results && entry.results.length > 0 && <div className="pk-result-grid">{entry.results.map((result) => <PriceCard key={`${entry.id}-${result.device.slug}`} result={result} onOpenDevice={onOpenDevice} onCompareDevice={onCompareDevice} />)}</div>}
-                {entry.needsResearch && <p className="pk-evidence-note">Local evidence is incomplete. You can opt in to web research; it will not create verified catalog entries.</p>}
-                {entry.guidance?.status === "generated" && <div className="pk-research-preview pk-guidance-preview"><strong>Gemini general guidance · not verified</strong><p>{entry.guidance.notice}</p><p className="pk-research-summary">{entry.guidance.text}</p></div>}
-                {entry.guidance && ["unavailable", "disabled", "rate_limited"].includes(entry.guidance.status) && <p className="pk-evidence-note" role="status">Gemini guidance: {entry.guidance.notice}</p>}
-                {entry.research && entry.research.status !== "not_requested" && <div className="pk-research-preview"><strong>Gemini research: {entry.research.status.replaceAll("_", " ")}</strong><p>{entry.research.notice}</p>{entry.research.summary && <p className="pk-research-summary">{entry.research.summary}</p>}{entry.research.sources?.length > 0 && <ul>{entry.research.sources.map((source) => { const url = safeSourceUrl(source.url); return url ? <li key={url}><a href={url} target="_blank" rel="noopener noreferrer">{source.title || "Research source"} ↗</a></li> : null; })}</ul>}</div>}
+                {entry.needsResearch && researchAvailable && !status.data?.automatic_research && <p className="pk-evidence-note">Local evidence is incomplete. You can request web research for source-linked details.</p>}
+                {entry.guidance?.status === "generated" && <div className="pk-research-preview pk-guidance-preview"><strong>AI general guidance · not verified</strong><p>{entry.guidance.notice}</p><p className="pk-research-summary">{entry.guidance.text}</p></div>}
+                {entry.guidance && ["unavailable", "disabled", "rate_limited"].includes(entry.guidance.status) && <p className="pk-evidence-note" role="status">AI guidance: {entry.guidance.notice}</p>}
+                {entry.research && entry.research.status !== "not_requested" && <div className="pk-research-preview"><strong>Web research: {entry.research.status.replaceAll("_", " ")}</strong><p>{entry.research.notice}</p>{entry.research.summary && <p className="pk-research-summary">{entry.research.summary}</p>}<div className="pk-result-grid">{entry.research.results?.filter((result) => !entry.results?.some((match) => match.device.slug === result.device.slug)).map((result) => <PriceCard key={`${entry.id}-web-${result.device.slug}`} result={result} onOpenDevice={onOpenDevice} onCompareDevice={onCompareDevice} />)}</div>{entry.research.sources?.length > 0 && <ul>{entry.research.sources.map((source) => { const url = safeSourceUrl(source.url); return url ? <li key={url}><a href={url} target="_blank" rel="noopener noreferrer">{source.title || "Research source"} ↗</a></li> : null; })}</ul>}</div>}
               </div>
             </div>)}
-            {loading && <div className="chat-message chat-assistant"><div className="chat-avatar">PD</div><div className="chat-bubble" role="status">Checking published devices and eligible price observations…</div></div>}
+            {loading && <div className="chat-message chat-assistant"><div className="chat-avatar">PD</div><div className="chat-bubble" role="status">{status.data?.automatic_research ? "Checking the catalog, then researching the web if needed. This may take a minute…" : "Checking published devices and eligible price observations…"}</div></div>}
           </div>
           <form className="assistant-composer" onSubmit={(event) => void submit(event)}>
             <label htmlFor="pk-chat-message" className="pk-composer-label">Ask in English or Roman Urdu</label>
