@@ -66,6 +66,7 @@ export function PhoneDetail({ device, onClose }: Props) {
             <p className="eyebrow">{device.brand.name}</p>
             <h2 id="phone-detail-title">{device.name}</h2>
             <p className="detail-summary">{device.summary}</p>
+            {device.data_source === "web_research" && <p className="pk-evidence-note">Web-researched specifications and prices are source-reported and await independent review.</p>}
             <dl className="detail-facts">
               <div><dt>Operating system</dt><dd>{device.operating_system || "Not specified"}</dd></div>
               <div><dt>Starting price</dt><dd>{device.lowest_price ? `${device.lowest_price.currency} ${device.lowest_price.price}` : "Unavailable"}</dd></div>

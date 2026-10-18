@@ -135,3 +135,12 @@ class ConversationRequestSerializer(PakistanRecommendationSerializer):
     reset_context = serializers.BooleanField(default=False)
     research = serializers.BooleanField(default=False)
     guidance = serializers.BooleanField(default=False)
+
+    def get_fields(self):
+        fields = super().get_fields()
+        # A cleared control explicitly removes remembered preferences.
+        for key in ("budget_pkr", "condition", "grade", "pta_status", "pta_verification",
+                    "city", "brand", "ram_min", "storage_min"):
+            fields[key].allow_null = True
+        fields["priorities"].allow_empty = True
+        return fields

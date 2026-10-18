@@ -41,6 +41,10 @@ class Device(models.Model):
     official_url = models.URLField(max_length=1000, blank=True)
     specifications = models.JSONField(default=dict, blank=True)
     is_published = models.BooleanField(default=False)
+    data_source = models.CharField(
+        max_length=20, choices=[("catalog", "Catalog"), ("web_research", "Web researched")],
+        default="catalog",
+    )
     last_verified_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -334,7 +338,7 @@ class MarketPriceObservation(models.Model):
     price_max_pkr = models.DecimalField(max_digits=12, decimal_places=2)
     observed_at = models.DateTimeField(default=timezone.now, db_index=True)
     verification_status = models.CharField(
-        max_length=12, choices=ReviewStatus.choices, default=ReviewStatus.PENDING,
+        max_length=12, choices=[*ReviewStatus.choices, ("web_reported", "Web research (unreviewed)")], default=ReviewStatus.PENDING,
         db_index=True,
     )
     reviewed_at = models.DateTimeField(null=True, blank=True)

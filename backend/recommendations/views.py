@@ -4,14 +4,16 @@ from rest_framework.throttling import SimpleRateThrottle
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
+from django.conf import settings
 
 from .models import RecommendationQuery
 from .conversation import build_conversation_criteria, previous_context, store_context, forget_context, RESET_PATTERN
-from .gemini_research import research_with_gemini
-from .gemini_guidance import guidance_configured, generate_general_guidance
+from .provider_config import research_available as research_configured, auto_research_enabled
+from .automatic_research import research_and_save, cached_research
+from .guidance import guidance_configured, generate_general_guidance
 from .providers import explain_recommendation
 from .serializers import RecommendationRequestSerializer, PakistanRecommendationSerializer, ConversationRequestSerializer
-from .local_rank import interpret_local_request, rank_pakistan_phones, local_explanation
+from .local_rank import interpret_local_request, rank_pakistan_phones, local_explanation, price_reference_alternatives
 from .services import (
     build_criteria,
     json_ready,
@@ -147,24 +149,41 @@ class PakistanConversationView(APIView):
 
         summary = rank_pakistan_phones(criteria)
         explanation = local_explanation(criteria, summary)
+        alternatives = price_reference_alternatives(criteria, summary)
+        if alternatives["results"]:
+            explanation = (
+                "Aap ke city/PTA filters ke liye exact evidence nahi mila. Neeche source-linked price references dekh sakte hain."
+                if criteria["response_language"] == "roman_urdu" else
+                "I could not confirm an exact match for your city/PTA filters. Here are source-linked price references to compare."
+            )
         if use_memory:
             store_context(criteria)
         research = {"status": "not_requested", "summary": "", "sources": [],
                     "notice": "External research was not requested."}
-        if validated["research"]:
+        automatic = bool(auto_research_enabled() and research_configured() and not summary["results"])
+        if validated["research"] or automatic:
             if not summary["needs_research"]:
                 research["status"] = "not_needed"
                 research["notice"] = "Local evidence is currently sufficient for this shortlist."
             else:
                 throttle = GeminiResearchThrottle()
-                if not throttle.allow_request(request, self):
+                cached = cached_research(criteria)
+                if cached is None and not throttle.allow_request(request, self):
                     research["status"] = "rate_limited"
                     research["notice"] = "Research request limit reached; the local shortlist is still available."
                 else:
-                    research = research_with_gemini(criteria)
-        # Gemini is an explicitly requested *ungrounded* advisor when there are
-        # no eligible local listings. The separate research flag still controls
-        # paid Google Search grounding; neither response becomes catalog data.
+                    research = cached if cached is not None else research_and_save(criteria)
+                    if research.get("catalog_updated"):
+                        summary = rank_pakistan_phones(criteria)
+                        alternatives = price_reference_alternatives(criteria, summary)
+                        explanation = local_explanation(criteria, summary)
+                        if not summary["results"] and research.get("results"):
+                            explanation = (
+                                "Internet par sourced phones mile aur catalog mein save ho gaye. City/PTA ki jo details confirm nahi, cards mein wazeh hain."
+                                if criteria["response_language"] == "roman_urdu" else
+                                "I found phones online and saved the sourced details to the catalog. See the web-researched cards; city/PTA claims remain source-reported or unknown."
+                            )
+        # General guidance is a separate opt-in AI capability, not price evidence.
         guidance = {"status": "not_requested", "text": "", "notice": "Gemini general guidance was not requested."}
         if validated["guidance"]:
             if summary["results"]:
@@ -189,8 +208,11 @@ class PakistanConversationView(APIView):
             "query_id": str(query.pk), "session_id": str(criteria["session_id"]),
             "memory_enabled": use_memory, "memory_used": bool(previous),
             "criteria": json_ready(criteria), **summary, "explanation": explanation,
+            "price_references": alternatives,
             "response_source": "deterministic",
             "research_requested": validated["research"],
+            "research_automatic": automatic,
+            "catalog_updated": research.get("catalog_updated", False),
             "research_executed": research["status"] == "grounded_preview",
             "research": research,
             "guidance_requested": validated["guidance"],
@@ -226,8 +248,7 @@ class ResearchJobCollectionView(APIView):
         from .tasks import run_research_job
         from .serializers import PakistanRecommendationSerializer
 
-        if not (settings.RESEARCH_JOB_QUEUE_ENABLED and settings.GEMINI_WEB_RESEARCH_ENABLED
-                and settings.GEMINI_API_KEY):
+        if not (settings.RESEARCH_JOB_QUEUE_ENABLED and research_configured()):
             return Response({"detail": "Research queue is disabled or not configured."}, status=503)
         serializer = PakistanRecommendationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

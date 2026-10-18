@@ -17,7 +17,7 @@ from .models import ConversationContext, RecommendationQuery
 from .serializers import ConversationRequestSerializer
 
 
-@override_settings(AI_PROVIDER="gemini", GEMINI_API_KEY="test-only", GEMINI_WEB_RESEARCH_ENABLED=False)
+@override_settings(AI_PROVIDER="gemini", GEMINI_API_KEY="test-only", GEMINI_WEB_RESEARCH_ENABLED=False, GEMINI_AUTO_RESEARCH_ENABLED=False)
 class ConversationApiTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -149,7 +149,7 @@ class ConversationApiTests(TestCase):
         self.assertFalse(ConversationContext.objects.filter(session_id=uid).exists())
 
     def test_research_is_not_called_by_default(self):
-        with patch("recommendations.views.research_with_gemini") as remote:
+        with patch("recommendations.views.research_and_save") as remote:
             result = self.ask("used gaming phone under 20k")
         self.assertEqual(result.status_code, 200)
         remote.assert_not_called()
@@ -159,7 +159,7 @@ class ConversationApiTests(TestCase):
         mocked = {"status": "grounded_preview", "summary": "Check listings; unverified.",
                   "sources": [{"url": "https://example.org/price", "title": "Price leads"}],
                   "notice": "not verified"}
-        with patch("recommendations.views.research_with_gemini", return_value=mocked) as remote:
+        with patch("recommendations.views.research_and_save", return_value=mocked) as remote:
             response = self.ask("used non PTA phone under 20k", research=True)
         self.assertTrue(response.data["needs_research"])
         self.assertTrue(response.data["research_executed"])
@@ -169,7 +169,7 @@ class ConversationApiTests(TestCase):
         self.assertEqual(MarketPriceObservation.objects.count(), 2)
 
     def test_not_needed_skips_paid_call(self):
-        with patch("recommendations.views.research_with_gemini") as remote:
+        with patch("recommendations.views.research_and_save") as remote:
             response = self.ask("used PTA gaming phone under 80k", max_results=1, research=True)
         self.assertEqual(response.data["research"]["status"], "not_needed")
         remote.assert_not_called()
@@ -181,7 +181,7 @@ class ConversationApiTests(TestCase):
 
     def test_limited_research_returns_local_result_without_calling_provider(self):
         with patch("recommendations.views.GeminiResearchThrottle.allow_request", return_value=False):
-            with patch("recommendations.views.research_with_gemini") as remote:
+            with patch("recommendations.views.research_and_save") as remote:
                 response = self.ask("used phone under 20k", research=True)
         self.assertEqual(response.data["research"]["status"], "rate_limited")
         remote.assert_not_called()

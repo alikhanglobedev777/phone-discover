@@ -61,11 +61,12 @@ export type Device = {
   name: string;
   slug: string;
   summary: string;
+  data_source?: "catalog" | "web_research";
   status: DeviceStatus;
   release_date: string | null;
   operating_system: string;
   primary_image_url: string;
-  lowest_price: { price: string; currency: string; country_code: string } | null;
+  lowest_price: { price: string; currency: string; country_code: string; evidence_type?: string } | null;
   official_url?: string;
   specifications?: Record<string, unknown>;
   specification_sections?: SpecificationSection[];

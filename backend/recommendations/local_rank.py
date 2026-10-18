@@ -79,7 +79,7 @@ def _fit_score(scores, priorities, budget):
     return score, missing
 
 
-def rank_pakistan_phones(criteria: dict):
+def rank_pakistan_phones(criteria: dict, *, reference_location_only=False):
     priorities = criteria["priorities"]
     budget = criteria.get("budget_pkr")
     primary = priorities[0] if priorities else "price"
@@ -90,6 +90,8 @@ def rank_pakistan_phones(criteria: dict):
         "page_size": 50,
         "page": 1,
         "budget_mode": "strict" if criteria["strict_budget"] else "possible",
+        "reference_location_only": reference_location_only,
+        "device_slugs": criteria.get("device_slugs"),
     }
     for key in (
         "budget_pkr", "condition", "grade", "pta_status", "pta_verification",
@@ -123,6 +125,8 @@ def rank_pakistan_phones(criteria: dict):
             for key in sorted(known, key=lambda k: scores[k], reverse=True)[:2]
         ]
         tradeoffs = []
+        if price["evidence_type"] == "web_researched":
+            tradeoffs.append("Web-researched price and specifications; not independently reviewed")
         if missing:
             tradeoffs.append("Not enough catalog scoring evidence for: " + ", ".join(missing))
         if price["budget_fit"] == "possibly_within_budget":
@@ -181,15 +185,63 @@ def rank_pakistan_phones(criteria: dict):
     }
 
 
+def price_reference_alternatives(criteria, summary):
+    """Show separately labeled references; never silently satisfy missing evidence."""
+    empty = {"results": [], "unconfirmed_filters": [], "notice": ""}
+    if summary["results"] or criteria.get("condition") not in (None, "box_pack"):
+        return empty
+    reference = dict(criteria)
+    unconfirmed = []
+    if criteria.get("city"):
+        reference["city"] = None
+        unconfirmed.append("city")
+    if criteria.get("pta_status") == "approved" or criteria.get("pta_verification"):
+        # Never substitute a non-PTA/CPID/patched phone for approved evidence.
+        if criteria.get("pta_status") not in (None, "approved", "unknown"):
+            return empty
+        reference["pta_status"] = "unknown"
+        reference["pta_verification"] = None
+        unconfirmed.extend(["pta_status", "pta_verification"])
+    if not unconfirmed:
+        return empty
+    reference["condition"] = "box_pack"
+    found = rank_pakistan_phones(reference, reference_location_only="city" in unconfirmed)
+    if not found["results"]:
+        return empty
+    for item in found["results"]:
+        item["recommended"] = False
+        item["tradeoffs"].insert(0, "Price reference only; not an exact match for your city/PTA requirements")
+    return {
+        "results": found["results"], "unconfirmed_filters": unconfirmed,
+        "notice": (
+            "Yeh box-pack price references hain, exact local matches nahi. "
+            "Aap ke shehar mein availability aur PTA approval confirm nahi. Budget aur baqi filters barqarar hain."
+            if criteria["response_language"] == "roman_urdu" else
+            "These box-pack price references fit your budget and other filters, but are not exact local matches. "
+            "Availability in your city and PTA approval are unconfirmed."
+        ),
+    }
+
+
 def local_explanation(criteria, summary):
     if not summary["results"]:
-        return (
-            "Is budget aur condition ke liye verified local price data nahi mila. "
-            "Internet research ke liye 'Request Gemini web research' select karein."
-            if criteria["response_language"] == "roman_urdu" else
-            "I found no published phone with fresh, permitted Pakistani price evidence matching your requirements. "
-            "To check unverified external sources, select 'Request Gemini web research' and ask again."
-        )
+        from catalog.availability import catalog_availability
+        from .provider_config import research_available as research_configured
+        state = catalog_availability()
+        roman = criteria["response_language"] == "roman_urdu"
+        if state == "empty":
+            explanation = ("Local catalog mein abhi phones add nahi hue. Price data import hone ke baad local recommendations milengi."
+                           if roman else "The local catalog has no published phones yet. Local recommendations need imported phones and Pakistani price evidence.")
+        elif state == "missing_prices":
+            explanation = ("Catalog mein phones hain lekin taza, reviewed Pakistani price data abhi nahi hai."
+                           if roman else "Phones are in the catalog, but fresh, reviewed Pakistani price evidence is not available yet.")
+        else:
+            explanation = ("In filters ke liye local price data nahi mila. City, condition, PTA aur budget filters check karein; purani preferences hatane ke liye New chat use karein."
+                           if roman else "No local price evidence matches these filters. Check city, condition, PTA and budget, or start a new chat to clear earlier preferences.")
+        if research_configured():
+            explanation += (" Web research ke liye 'Request Gemini web research' select karein."
+                            if roman else " You can select 'Request Gemini web research' to check external sources.")
+        return explanation
     best = summary["results"][0]
     name = f"{best['device']['brand']} {best['device']['name']}".strip()
     price = best["market_price"]
@@ -199,7 +251,7 @@ def local_explanation(criteria, summary):
                 "Yeh observed asking price hai, guaranteed market rate nahi. "
                 "PTA status aur handset condition khud verify karein.")
     return (
-        f"Based on available catalog estimates, {name} is a leading local option "
+        f"{name} is a local option matching your filters "
         f"with an observed asking-price range of {range_str}. "
         "This is not a live offer; verify handset condition and PTA status independently."
     )

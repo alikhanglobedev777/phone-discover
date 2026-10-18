@@ -11,10 +11,20 @@ from urllib.parse import quote, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from django.conf import settings
+from .provider_config import key_for, model_for, web_enabled
 
 
 class ResearchUnavailable(Exception):
     """External research could not provide a usable grounded answer."""
+
+
+def research_configured():
+    return bool(
+        web_enabled()
+        and key_for("gemini")
+        and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,99}",
+                         str(model_for("gemini") or ""))
+    )
 
 
 class _NoRedirect(HTTPRedirectHandler):
@@ -42,7 +52,7 @@ def _safe_link(url):
         return False
 
 
-def extract_grounded_answer(result, max_chars=1800):
+def extract_grounded_answer(result, max_chars=1800, max_sources=5):
     """Fail closed: answer is unusable without Google grounding citations."""
     candidates = result.get("candidates", []) if isinstance(result, dict) else []
     if not isinstance(candidates, list) or not candidates or not isinstance(candidates[0], dict):
@@ -68,7 +78,7 @@ def extract_grounded_answer(result, max_chars=1800):
         used.add(url)
         title = str(web.get("title") or "Source")[:180]
         sources.append({"url": url, "title": title})
-        if len(sources) == 5:
+        if len(sources) == max_sources:
             break
     if not sources:
         raise ResearchUnavailable("no source links")
@@ -123,11 +133,11 @@ def _prompt(criteria, structured=False):
 
 def research_with_gemini(criteria, *, structured=False):
     """Make one bounded server-side Gemini call, when explicitly enabled by caller."""
-    key = getattr(settings, "GEMINI_API_KEY", "").strip()
-    if not key or not getattr(settings, "GEMINI_WEB_RESEARCH_ENABLED", False):
+    key = key_for("gemini")
+    if not key or not web_enabled():
         return {"status": "not_configured", "summary": "", "sources": [],
                 "notice": "Gemini web research is disabled or not configured."}
-    model = getattr(settings, "GEMINI_CHAT_MODEL", "gemini-3.8-flash")
+    model = model_for("gemini")
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,99}", model):
         return {"status": "not_configured", "summary": "", "sources": [],
                 "notice": "Invalid Gemini model configuration."}

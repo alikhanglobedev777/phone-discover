@@ -93,6 +93,7 @@ class GuidanceServiceTests(SimpleTestCase):
 
 
 @override_settings(AI_PROVIDER="gemini", GEMINI_API_KEY="test-only", GEMINI_WEB_RESEARCH_ENABLED=False)
+@override_settings(GEMINI_AUTO_RESEARCH_ENABLED=False)
 class GuidanceConversationTests(TestCase):
     def setUp(self):
         self.client = APIClient()
@@ -137,7 +138,7 @@ class GuidanceConversationTests(TestCase):
 
     def test_grounded_research_skips_duplicate_guidance_call(self):
         research = {"status": "grounded_preview", "summary": "Unverified price leads.", "sources": [{"url": "https://example.org/a", "title": "Source"}], "notice": "unverified"}
-        with patch("recommendations.views.research_with_gemini", return_value=research), patch("recommendations.views.GeminiResearchThrottle.allow_request", return_value=True), patch("recommendations.views.generate_general_guidance") as remote:
+        with patch("recommendations.views.research_and_save", return_value=research), patch("recommendations.views.GeminiResearchThrottle.allow_request", return_value=True), patch("recommendations.views.generate_general_guidance") as remote:
             result = self.ask(research=True, guidance=True)
         self.assertEqual(result.status_code, 200)
         self.assertEqual(result.data["guidance"]["status"], "not_needed")

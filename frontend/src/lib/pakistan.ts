@@ -50,7 +50,7 @@ export type LocalResult = {
   missing_score_evidence: string[];
 };
 
-export type GeminiGuidance = {
+export type AIGuidance = {
   status: "not_requested" | "not_needed" | "disabled" | "rate_limited" | "unavailable" | "generated";
   text: string;
   notice: string;
@@ -61,6 +61,9 @@ export type ResearchPreview = {
   summary: string;
   sources: { url: string; title: string }[];
   notice: string;
+  results?: LocalResult[];
+  saved?: { devices_created?: number; prices_saved?: number; rejected?: number };
+  catalog_updated?: boolean;
 };
 
 export type ConversationRequest = {
@@ -68,15 +71,16 @@ export type ConversationRequest = {
   message: string;
   research: boolean;
   guidance: boolean;
-  budget_pkr?: string;
-  condition?: string;
-  pta_status?: string;
-  pta_verification?: string;
-  city?: string;
+  budget_pkr?: string | null;
+  condition?: string | null;
+  pta_status?: string | null;
+  pta_verification?: string | null;
+  city?: string | null;
   priorities?: string[];
-  ram_min?: number;
-  storage_min?: number;
+  ram_min?: number | null;
+  storage_min?: number | null;
   strict_budget?: boolean;
+  reset_context?: boolean;
 };
 
 export type ConversationResponse = {
@@ -90,9 +94,25 @@ export type ConversationResponse = {
   needs_research: boolean;
   research_reason: string | null;
   research_executed: boolean;
+  research_automatic?: boolean;
+  catalog_updated?: boolean;
   research: ResearchPreview;
-  guidance: GeminiGuidance;
+  guidance: AIGuidance;
+  price_references?: { results: LocalResult[]; unconfirmed_filters: string[]; notice: string };
 };
+
+export function activeFilterSummary(criteria: Record<string, unknown>): string {
+  const labels: Record<string, string> = {
+    budget_pkr: "Budget PKR", city: "City", condition: "Condition", brand: "Brand",
+    pta_status: "PTA", pta_verification: "PTA evidence", ram_min: "Minimum RAM",
+    storage_min: "Minimum storage", priorities: "Priorities",
+  };
+  return Object.entries(labels).flatMap(([key, label]) => {
+    const value = criteria[key];
+    if (value == null || value === "" || (Array.isArray(value) && !value.length)) return [];
+    return [`${label}: ${String(value).replaceAll("_", " ")}`];
+  }).join(" · ");
+}
 
 export type MarketSearchFilters = {
   q: string;
@@ -118,6 +138,7 @@ export type MarketSearchResult = {
 };
 
 export type MarketSearchResponse = {
+  catalog_status: "empty" | "missing_prices" | "ready";
   count: number;
   page: number;
   page_size: number;
@@ -214,6 +235,10 @@ async function jsonApi<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export function searchPakistaniMarket(filters: MarketSearchFilters, page = 1): Promise<MarketSearchResponse> {
   return jsonApi(`/api/catalog/search/?${marketQuery(filters, page)}`);
+}
+
+export function catalogStatus(): Promise<{ catalog_status: "empty" | "missing_prices" | "ready"; research_available: boolean; automatic_research: boolean; ai_provider: string; search_provider: string; guidance_available: boolean; configuration_error: string }> {
+  return jsonApi("/api/catalog/status/");
 }
 
 export function converse(request: ConversationRequest, signal?: AbortSignal): Promise<ConversationResponse> {

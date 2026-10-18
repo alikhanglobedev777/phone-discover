@@ -14,11 +14,15 @@ from django.db.models.functions import Concat, Lower, Trim
 from django.urls import reverse
 
 from .models import DeviceVariant, MarketPriceObservation, ResearchSource
+from .availability import catalog_availability
 from .pricing import PRICE_GUIDE_DISCLAIMER, budget_fit, eligible_price_observations
 
 
 def _matching_prices(criteria, *, as_of=None):
     qs = eligible_price_observations(as_of=as_of)
+    # Internal reference lookup: unknown location is never an exact city match.
+    if criteria.get("reference_location_only"):
+        qs = qs.annotate(_reference_city=Trim("city")).filter(_reference_city="")
     for field in ("condition", "grade", "pta_status", "pta_verification"):
         if criteria.get(field):
             qs = qs.filter(**{field: criteria[field]})
@@ -71,7 +75,7 @@ def _price_payload(price, budget_pkr=None):
         "observed_max_pkr": str(price.price_max_pkr),
         "observed_at": price.observed_at.isoformat(),
         "source_url": price.source.url if price.source_id else None,
-        "evidence_type": "linked_source" if price.source_id else "admin_documented",
+        "evidence_type": "web_researched" if price.verification_status == "web_reported" else "linked_source" if price.source_id else "admin_documented",
         "availability": "not_confirmed",
         "budget_fit": budget_fit(price.price_min_pkr, price.price_max_pkr, budget_pkr),
     }
@@ -114,6 +118,8 @@ def search_local_catalog(criteria, *, as_of=None):
     variants = DeviceVariant.objects.filter(device__is_published=True).select_related(
         "device", "device__brand"
     )
+    if criteria.get("device_slugs"):
+        variants = variants.filter(device__slug__in=criteria["device_slugs"])
     if criteria.get("brand"):
         variants = variants.filter(device__brand__slug__iexact=criteria["brand"])
     if criteria.get("os"):
@@ -219,6 +225,7 @@ def search_local_catalog(criteria, *, as_of=None):
         "page_size": page_size,
         "has_more": start + page_size < count,
         "needs_research": count == 0,
+        "catalog_status": catalog_availability(as_of=as_of) if count == 0 else "ready",
         "research_reason": "no_matching_local_evidence" if count == 0 else None,
         "results": results,
         "price_disclaimer": PRICE_GUIDE_DISCLAIMER,

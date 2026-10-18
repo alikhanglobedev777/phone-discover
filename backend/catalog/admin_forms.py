@@ -47,7 +47,7 @@ class ReviewTimestampForm(forms.ModelForm):
 
     def clean(self):
         data = super().clean()
-        if self.status_field and data.get(self.status_field) not in (None, ReviewStatus.PENDING):
+        if self.status_field and data.get(self.status_field) not in (None, ReviewStatus.PENDING, "web_reported"):
             if self.instance.reviewed_at is None:
                 self.instance.reviewed_at = timezone.now()
         return data

@@ -10,6 +10,7 @@ from urllib.parse import quote
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from django.conf import settings
+from .provider_config import ai_selection, key_for, model_for
 
 
 class _NoRedirect(HTTPRedirectHandler):
@@ -29,8 +30,8 @@ _DISABLED = {
 
 def guidance_configured():
     return (
-        getattr(settings, "AI_PROVIDER", "deterministic") in ("gemini", "auto")
-        and bool(str(getattr(settings, "GEMINI_API_KEY", "") or "").strip())
+        ai_selection() == "gemini"
+        and bool(key_for("gemini"))
     )
 
 
@@ -89,10 +90,10 @@ def generate_general_guidance(criteria):
     """One bounded request; failures never leak credentials or block local results."""
     if not guidance_configured():
         return dict(_DISABLED)
-    model = str(getattr(settings, "GEMINI_CHAT_MODEL", "") or "")
+    model = str(model_for("gemini") or "")
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,99}", model):
         return dict(_DISABLED)
-    key = str(settings.GEMINI_API_KEY).strip()
+    key = key_for("gemini")
     endpoint = ("https://generativelanguage.googleapis.com/v1beta/models/"
                 + quote(model, safe="") + ":generateContent")
     payload = {
