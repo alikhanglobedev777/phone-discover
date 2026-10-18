@@ -16,6 +16,10 @@ if (-not (Test-Path $pythonPath)) {
 
 Set-Location $projectRoot
 
+if (-not (Test-Path (Join-Path $backendPath ".env.local"))) {
+    throw "Missing backend/.env.local. Run .\scripts\init-dev-env.ps1 first."
+}
+
 if (-not $SkipInfrastructure) {
     docker compose up -d db redis
     if ($LASTEXITCODE -ne 0) {

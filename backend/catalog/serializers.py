@@ -1,4 +1,8 @@
+from decimal import Decimal
+
 from rest_framework import serializers
+
+from .pricing import price_summaries_for_device
 
 from .models import (
     Brand,
@@ -6,6 +10,7 @@ from .models import (
     DeviceImage,
     DeviceVariant,
     MarketOffer,
+    MarketPriceObservation,
     SpecificationItem,
     SpecificationSection,
 )
@@ -85,6 +90,7 @@ class DeviceListSerializer(serializers.ModelSerializer):
             "name",
             "slug",
             "summary",
+            "data_source",
             "status",
             "release_date",
             "operating_system",
@@ -104,11 +110,48 @@ class DeviceListSerializer(serializers.ModelSerializer):
             default=None,
         )
         if not offer:
-            return None
+            summaries = price_summaries_for_device(obj.id)
+            if not summaries:
+                return None
+            best = min(summaries, key=lambda item: Decimal(item["observed_min_pkr"]))
+            return {"price": best["observed_min_pkr"], "currency": "PKR", "country_code": "PK",
+                    "evidence_type": best["evidence_type"]}
         return {"price": str(offer.price), "currency": offer.currency, "country_code": offer.country_code}
 
 
+class PakistanPriceQuerySerializer(serializers.Serializer):
+    variant_id = serializers.IntegerField(min_value=1, required=False)
+    condition = serializers.ChoiceField(choices=MarketPriceObservation.Condition.choices, required=False)
+    grade = serializers.ChoiceField(choices=MarketPriceObservation.Grade.choices, required=False)
+    pta_status = serializers.ChoiceField(choices=MarketPriceObservation.PTAStatus.choices, required=False)
+    pta_verification = serializers.ChoiceField(
+        choices=MarketPriceObservation.PTAVerification.choices, required=False
+    )
+    city = serializers.CharField(max_length=100, allow_blank=False, trim_whitespace=True, required=False)
+    budget_pkr = serializers.DecimalField(
+        max_digits=12, decimal_places=2, min_value=0, required=False
+    )
+
+    def validate(self, attrs):
+        grade = attrs.get("grade")
+        condition = attrs.get("condition")
+        if grade and condition not in (
+            MarketPriceObservation.Condition.USED,
+            MarketPriceObservation.Condition.REFURBISHED,
+        ):
+            raise serializers.ValidationError({"grade": "Select used or refurbished condition with a grade."})
+        if (attrs.get("pta_verification") == MarketPriceObservation.PTAVerification.CHECKED
+                and attrs.get("pta_status") == MarketPriceObservation.PTAStatus.UNKNOWN):
+            raise serializers.ValidationError({"pta_status": "Independently checked PTA status cannot be unknown."})
+        return attrs
+
+
 class DeviceDetailSerializer(DeviceListSerializer):
+    pakistan_prices = serializers.SerializerMethodField()
+
+    def get_pakistan_prices(self, obj):
+        return price_summaries_for_device(obj.id)
+
     variants = DeviceVariantSerializer(many=True, read_only=True)
     images = DeviceImageSerializer(many=True, read_only=True)
     specification_sections = SpecificationSectionSerializer(many=True, read_only=True)
@@ -121,4 +164,5 @@ class DeviceDetailSerializer(DeviceListSerializer):
             "images",
             "last_verified_at",
             "variants",
+            "pakistan_prices",
         ]

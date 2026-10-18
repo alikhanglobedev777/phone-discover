@@ -1,0 +1,66 @@
+{
+  "observed_at": "2026-10-17T20:50:04Z",
+  "review_notes": "Product pages checked by Codex at the user's request on 18 October 2026 (Asia/Karachi). Exact physical RAM/storage variants and source-reported specifications recorded. Website asking prices only; stock, city availability, camera quality and handset PTA status are not independently verified. WhatMobile prices are national reference prices, not seller offers. Product image URLs point to the corresponding source page's image.",
+  "reuse_notes": "Limited attributed factual price/specification excerpts for the user-requested local catalog. Source-hosted product images are linked for product identification at the user's request. No reviews, descriptions or personal contact details copied. This is the basis for this limited use, not a publisher license or permission for bulk redistribution.",
+  "devices": [
+    {
+      "brand": "Samsung", "name": "Galaxy A17", "slug": "samsung-galaxy-a17",
+      "primary_image_url": "https://www.whatmobile.com.pk/admin/images/Samsung/SamsungGalaxyA17-b.jpg",
+      "operating_system": "Android 15", "ram_gb": 6, "storage_gb": 128,
+      "chipset": "MediaTek Helio G99", "battery_mah": 5000, "display_refresh_hz": 90,
+      "specifications": {"Display": "6.7-inch AMOLED, 90 Hz", "Rear cameras": "50 MP main with OIS, 5 MP ultrawide, 2 MP macro", "Front camera": "13 MP"},
+      "prices": [{"publisher": "WhatMobile", "url": "https://www.whatmobile.com.pk/Samsung_Galaxy-A17", "price_pkr": "72999.00", "listing_status": "unknown"}]
+    },
+    {
+      "brand": "Samsung", "name": "Galaxy A56", "slug": "samsung-galaxy-a56",
+      "primary_image_url": "https://www.whatmobile.com.pk/admin/images/Samsung/SamsungGalaxyA56-b.jpg",
+      "operating_system": "Android 15", "ram_gb": 8, "storage_gb": 256,
+      "chipset": "Exynos 1580", "battery_mah": 5000, "display_refresh_hz": 120,
+      "specifications": {"Display": "6.7-inch AMOLED, 120 Hz", "Rear cameras": "50 MP main with OIS, 12 MP ultrawide, 5 MP macro", "Front camera": "12 MP"},
+      "prices": [{"publisher": "WhatMobile", "url": "https://www.whatmobile.com.pk/Samsung_Galaxy-A56", "price_pkr": "137999.00", "listing_status": "unknown"}]
+    },
+    {
+      "brand": "Vivo", "name": "V60 Lite", "slug": "vivo-v60-lite",
+      "primary_image_url": "https://www.whatmobile.com.pk/admin/images/Vivo/VivoV60Lite-b.jpg",
+      "operating_system": "Android 15", "ram_gb": 8, "storage_gb": 256,
+      "chipset": "Snapdragon 685", "battery_mah": 6500, "display_refresh_hz": 120,
+      "specifications": {"Display": "6.77-inch AMOLED, 120 Hz", "Rear cameras": "50 MP main, 8 MP ultrawide", "Front camera": "32 MP", "Network": "4G"},
+      "prices": [{"publisher": "WhatMobile", "url": "https://www.whatmobile.com.pk/Vivo_V60-Lite", "price_pkr": "76999.00", "listing_status": "unknown"}]
+    },
+    {
+      "brand": "Realme", "name": "C75", "slug": "realme-c75",
+      "primary_image_url": "https://www.whatmobile.com.pk/admin/images/Realme/RealmeC75-b.jpg",
+      "operating_system": "Android 14", "ram_gb": 8, "storage_gb": 128,
+      "chipset": "MediaTek Helio G92 Max", "battery_mah": 6000, "display_refresh_hz": 90,
+      "specifications": {"Display": "6.72-inch IPS LCD, 90 Hz", "Rear camera": "50 MP main", "Front camera": "8 MP"},
+      "prices": [{"publisher": "WhatMobile", "url": "https://www.whatmobile.com.pk/Realme_C75", "price_pkr": "46999.00", "listing_status": "unknown"}]
+    },
+    {
+      "brand": "Tecno", "name": "Spark 40", "slug": "tecno-spark-40",
+      "primary_image_url": "https://www.whatmobile.com.pk/admin/images/Tecno/TecnoSpark40-b.jpg",
+      "operating_system": "Android 15", "ram_gb": 6, "storage_gb": 128,
+      "chipset": "MediaTek Helio G81", "battery_mah": 5200, "display_refresh_hz": 120,
+      "specifications": {"Display": "6.67-inch IPS LCD, 120 Hz", "Rear camera": "50 MP main", "Front camera": "8 MP"},
+      "prices": [
+        {"publisher": "WhatMobile", "url": "https://www.whatmobile.com.pk/Tecno_Spark-40", "price_pkr": "43999.00", "listing_status": "unknown"},
+        {"publisher": "PriceOye", "url": "https://priceoye.pk/mobiles/tecno/tecno-spark-40", "price_pkr": "49999.00", "listing_status": "unknown"}
+      ]
+    },
+    {
+      "brand": "Oppo", "name": "A5 Pro", "slug": "oppo-a5-pro",
+      "primary_image_url": "https://www.whatmobile.com.pk/admin/images/Oppo/OppoA5Pro-b.jpg",
+      "operating_system": "Android 15", "ram_gb": 8, "storage_gb": 128,
+      "chipset": "Snapdragon 6s 4G Gen 1", "battery_mah": 5800, "display_refresh_hz": 120,
+      "specifications": {"Display": "6.67-inch IPS LCD, 120 Hz", "Rear cameras": "50 MP main, 2 MP depth", "Front camera": "8 MP", "Network": "4G"},
+      "prices": [{"publisher": "WhatMobile", "url": "https://www.whatmobile.com.pk/Oppo_A5-Pro", "price_pkr": "54999.00", "listing_status": "unknown"}]
+    },
+    {
+      "brand": "Infinix", "name": "Note 50", "slug": "infinix-note-50",
+      "primary_image_url": "https://www.whatmobile.com.pk/admin/images/Infinix/InfinixNote50-b.jpg",
+      "operating_system": "Android 15", "ram_gb": 8, "storage_gb": 256,
+      "chipset": "MediaTek Helio G100 Ultimate", "battery_mah": 5200, "display_refresh_hz": 144,
+      "specifications": {"Display": "6.78-inch AMOLED, 144 Hz", "Rear cameras": "50 MP main with OIS, 2 MP macro", "Front camera": "13 MP"},
+      "prices": [{"publisher": "WhatMobile", "url": "https://www.whatmobile.com.pk/Infinix_Note-50", "price_pkr": "74999.00", "listing_status": "unknown"}]
+    }
+  ]
+}

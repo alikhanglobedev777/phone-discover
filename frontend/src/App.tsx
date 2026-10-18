@@ -5,6 +5,7 @@ import { CatalogFilters } from "./components/CatalogFilters";
 import { ComparisonModal } from "./components/ComparisonModal";
 import { ComparisonTray } from "./components/ComparisonTray";
 import { PhoneCard } from "./components/PhoneCard";
+import { PakistanMarket } from "./components/PakistanMarket";
 import { PhoneDetail } from "./components/PhoneDetail";
 import { RecommendationAssistant } from "./components/RecommendationAssistant";
 import type { Device, DeviceFilters } from "./types";
@@ -118,6 +119,7 @@ export default function App() {
         <div className="brand-mark">Mobile Discovery</div>
         <div className="nav-actions">
           <a className="nav-link" href="/admin/">Admin</a>
+          <a className="nav-link" href="#market">PKR market</a>
           <a className="nav-link" href="#assistant">AI assistant</a>
         </div>
       </nav>
@@ -125,10 +127,11 @@ export default function App() {
         <p className="eyebrow">Smartphone discovery</p>
         <h1>Find the phone that fits your life.</h1>
         <p className="hero-copy">
-          A trustworthy catalog and recommendation assistant for camera, gaming, battery, and value.
+          Explore phone specifications and observed Pakistani asking prices, or ask our English and Roman Urdu recommendation assistant.
         </p>
-        <a className="hero-cta" href="#catalog">Explore phones <span aria-hidden="true">↓</span></a>
+        <a className="hero-cta" href="#market">Explore Pakistani prices <span aria-hidden="true">↓</span></a>
       </section>
+      <PakistanMarket onOpenDevice={setActiveSlug} onCompareDevice={addComparison} />
       <section className="catalog-section" id="catalog">
         <CatalogFilters
           brands={brandsQuery.data?.results ?? []}
@@ -143,6 +146,7 @@ export default function App() {
           </div>
           <span className="muted">{devicesQuery.data?.count ?? 0} phones</span>
         </div>
+        <p className="pk-market-disclaimer">This reference catalog may include offers in USD or other currencies. Use the PKR market section above for reviewed Pakistani price evidence; currencies are never compared directly.</p>
         {devicesQuery.isLoading && <p className="state-message">Loading phones…</p>}
         {devicesQuery.isError && <p className="state-message error">Could not load the catalog. Is the backend running?</p>}
         {!devicesQuery.isLoading && !devices.length && (
