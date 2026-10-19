@@ -8,6 +8,7 @@ from .models import (
     Brand,
     Device,
     DeviceImage,
+    DeviceColor,
     DeviceVariant,
     MarketOffer,
     MarketPriceObservation,
@@ -38,10 +39,16 @@ class MarketOfferSerializer(serializers.ModelSerializer):
         ]
 
 
+class DeviceColorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DeviceColor
+        fields = ["id", "name", "hex_code", "sort_order"]
+
+
 class DeviceImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = DeviceImage
-        fields = ["id", "image_url", "alt_text", "sort_order", "is_primary"]
+        fields = ["id", "image_url", "alt_text", "sort_order", "is_primary", "view", "color"]
 
 
 class SpecificationItemSerializer(serializers.ModelSerializer):
@@ -154,6 +161,7 @@ class DeviceDetailSerializer(DeviceListSerializer):
 
     variants = DeviceVariantSerializer(many=True, read_only=True)
     images = DeviceImageSerializer(many=True, read_only=True)
+    colors = DeviceColorSerializer(many=True, read_only=True)
     specification_sections = SpecificationSectionSerializer(many=True, read_only=True)
 
     class Meta(DeviceListSerializer.Meta):
@@ -162,6 +170,7 @@ class DeviceDetailSerializer(DeviceListSerializer):
             "specifications",
             "specification_sections",
             "images",
+            "colors",
             "last_verified_at",
             "variants",
             "pakistan_prices",

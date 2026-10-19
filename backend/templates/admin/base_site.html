@@ -1,0 +1,31 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | Phone Discover Admin{% endblock %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <link rel="stylesheet" href="{% static 'catalog/admin/brand_admin.css' %}">
+{% endblock %}
+
+{% block branding %}
+  <a class="pd-brand" href="{% url 'admin:index' %}" aria-label="Phone Discover administration homepage">
+    <span class="pd-brand__symbol" aria-hidden="true">P<span>✦</span></span>
+    <span class="pd-brand__name">Phone Discover <small>ADMIN WORKSPACE</small></span>
+  </a>
+{% endblock %}
+
+{% block nav-global %}
+  <nav class="pd-global-nav" aria-label="Quick admin navigation">
+    <a href="{% url 'admin:index' %}">Dashboard</a>
+    {% if perms.catalog.view_device or perms.catalog.change_device %}
+      <a href="{% url 'admin:catalog_device_changelist' %}">Phones</a>
+    {% endif %}
+    {% if perms.catalog.view_marketpriceobservation or perms.catalog.change_marketpriceobservation %}
+      <a href="{% url 'admin:catalog_marketpriceobservation_changelist' %}">Prices</a>
+    {% endif %}
+    {% if perms.catalog.view_pricerefreshrun or perms.catalog.change_pricerefreshrun %}
+      <a href="{% url 'admin:catalog_pricerefreshrun_changelist' %}">Price refresh</a>
+    {% endif %}
+  </nav>
+{% endblock %}

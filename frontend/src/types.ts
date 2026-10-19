@@ -22,6 +22,15 @@ export type DeviceImage = {
   alt_text: string;
   sort_order: number;
   is_primary: boolean;
+  view?: "front" | "back" | "side" | "detail" | "unspecified";
+  color?: number | null;
+};
+
+export type DeviceColor = {
+  id: number;
+  name: string;
+  hex_code: string;
+  sort_order: number;
 };
 
 export type SpecificationItem = {
@@ -71,6 +80,7 @@ export type Device = {
   specifications?: Record<string, unknown>;
   specification_sections?: SpecificationSection[];
   images?: DeviceImage[];
+  colors?: DeviceColor[];
   last_verified_at?: string | null;
   variants?: Variant[];
 };

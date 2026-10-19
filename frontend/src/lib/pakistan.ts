@@ -237,7 +237,23 @@ export function searchPakistaniMarket(filters: MarketSearchFilters, page = 1): P
   return jsonApi(`/api/catalog/search/?${marketQuery(filters, page)}`);
 }
 
-export function catalogStatus(): Promise<{ catalog_status: "empty" | "missing_prices" | "ready"; research_available: boolean; automatic_research: boolean; ai_provider: string; search_provider: string; guidance_available: boolean; configuration_error: string }> {
+export type CatalogStatus = {
+  catalog_status: "empty" | "missing_prices" | "ready";
+  research_available: boolean;
+  automatic_research: boolean;
+  // Older backend instances do not send provider capabilities yet.
+  ai_provider?: string;
+  search_provider?: string;
+  guidance_available?: boolean;
+  configuration_error?: string;
+};
+
+export function searchProviderLabel(provider: unknown): string {
+  return typeof provider === "string" && provider.trim()
+    ? provider.replaceAll("_", " ") : "configured web sources";
+}
+
+export function catalogStatus(): Promise<CatalogStatus> {
   return jsonApi("/api/catalog/status/");
 }
 
