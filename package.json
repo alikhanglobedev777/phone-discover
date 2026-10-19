@@ -1,0 +1,11 @@
+{
+  "name": "phone-discover-workspace",
+  "private": true,
+  "version": "1.0.0",
+  "description": "One-command local development for the Phone Discover Django backend",
+  "scripts": {
+    "dev": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/npm-backend.ps1",
+    "start": "npm run dev",
+    "dev:no-docker": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/npm-backend.ps1 -SkipInfrastructure"
+  }
+}

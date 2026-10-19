@@ -21,6 +21,7 @@ from .models import (
     Device,
     DeviceClaim,
     DeviceImage,
+    DeviceColor,
     DeviceVariant,
     IngestionCandidate,
     MarketOffer,
@@ -55,10 +56,18 @@ class DeviceVariantInline(admin.TabularInline):
     verbose_name_plural = "RAM/storage variants — open a variant to add Pakistan prices"
 
 
+class DeviceColorInline(admin.TabularInline):
+    model = DeviceColor
+    extra = 0
+    fields = ("name", "hex_code", "sort_order")
+    verbose_name_plural = "Official colors / finishes — save these before assigning photos"
+
+
 class DeviceImageInline(admin.TabularInline):
     model = DeviceImage
     extra = 0
-    fields = ("image_url", "alt_text", "is_primary", "sort_order")
+    fields = ("image_url", "view", "color", "alt_text", "is_primary", "sort_order")
+    verbose_name_plural = "Product photography — tag front, back, side and matching finish"
 
 
 class SpecificationSectionInline(admin.TabularInline):
@@ -77,7 +86,7 @@ class DeviceAdmin(admin.ModelAdmin):
     list_filter = ("is_published", "status", "brand", "operating_system")
     search_fields = ("name", "brand__name", "summary", "specification_sections__items__value")
     prepopulated_fields = {"slug": ("name",)}
-    inlines = [DeviceImageInline, DeviceVariantInline, SpecificationSectionInline]
+    inlines = [DeviceColorInline, DeviceImageInline, DeviceVariantInline, SpecificationSectionInline]
     readonly_fields = ("created_at", "updated_at")
     list_select_related = ("brand",)
     save_on_top = True
@@ -129,12 +138,19 @@ class SpecificationSectionAdmin(admin.ModelAdmin):
     inlines = [SpecificationItemInline]
 
 
+@admin.register(DeviceColor)
+class DeviceColorAdmin(admin.ModelAdmin):
+    list_display = ("device", "name", "hex_code", "sort_order")
+    search_fields = ("device__name", "name")
+    list_select_related = ("device", "device__brand")
+
+
 @admin.register(DeviceImage)
 class DeviceImageAdmin(admin.ModelAdmin):
-    list_display = ("device", "alt_text", "is_primary", "sort_order")
-    list_filter = ("is_primary", "device__brand")
-    search_fields = ("device__name", "device__brand__name", "alt_text")
-    list_select_related = ("device", "device__brand")
+    list_display = ("device", "alt_text", "view", "color", "is_primary", "sort_order")
+    list_filter = ("view", "is_primary", "device__brand")
+    search_fields = ("device__name", "device__brand__name", "alt_text", "color__name")
+    list_select_related = ("device", "device__brand", "color")
 
 
 class PakistanPriceInline(admin.StackedInline):
@@ -369,3 +385,7 @@ class IngestionCandidateAdmin(admin.ModelAdmin):
         inserted = sum(1 for pk in queryset.values_list("pk", flat=True)
                        if promote_approved_price_candidate(pk))
         self.message_user(request, f"Created {inserted} pending price observation(s); independent price/PTA verification is still required.", messages.INFO)
+
+
+# Keep refresh administration separate from the existing research-review workflows.
+from . import price_refresh_admin  # noqa: E402,F401

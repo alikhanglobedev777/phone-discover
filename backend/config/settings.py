@@ -56,7 +56,7 @@ ROOT_URLCONF = "config.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -212,3 +212,10 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_TIME_LIMIT = 70
 CELERY_TASK_SOFT_TIME_LIMIT = 60
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+
+
+# Scheduled PKR observations: explicitly opt-in (may incur LLM/search charges).
+PRICE_REFRESH_ENABLED = os.getenv("PRICE_REFRESH_ENABLED", "0").lower() in {"1", "true", "yes"}
+PRICE_REFRESH_MAX_VARIANTS = max(1, min(250, int(os.getenv("PRICE_REFRESH_MAX_VARIANTS", "40"))))
+PRICE_REFRESH_PRICE_CHANGE_LIMIT = float(os.getenv("PRICE_REFRESH_PRICE_CHANGE_LIMIT", "0.35"))
+PRICE_REFRESH_DELAY_SECONDS = float(os.getenv("PRICE_REFRESH_DELAY_SECONDS", "1.0"))
