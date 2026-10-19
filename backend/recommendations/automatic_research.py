@@ -2,6 +2,9 @@
 
 import hashlib
 import json
+import re
+
+from django.utils.text import slugify
 
 from django.core.cache import cache
 from django.conf import settings
@@ -14,7 +17,7 @@ from .local_rank import rank_pakistan_phones
 
 def _cache_key(criteria):
     allowed = ("budget_pkr", "condition", "grade", "pta_status", "pta_verification", "city",
-               "brand", "device_query", "priorities", "ram_min", "storage_min", "strict_budget")
+               "brand", "device_query", "priorities", "ram_min", "storage_min", "strict_budget", "comparison_target")
     return "catalog-research:" + hashlib.sha256(json.dumps(
         {"criteria": {k: criteria.get(k) for k in allowed}, "provider": search_selection(),
          "credential_version": hashlib.sha256(key_for(search_selection()).encode()).hexdigest(),
@@ -46,6 +49,25 @@ def _research_cards(criteria, slugs):
     return cards
 
 
+def _matches_comparison_target(phone, query):
+    """Only import results for the model requested by the comparison visitor.
+
+    Optional memory-size suffixes are ignored for identity; the import still
+    validates the exact RAM/storage variant and the original cited source.
+    """
+    words = re.sub(r"\b\d+\s*(?:gb|tb)\b", "", query, flags=re.I)
+    words = re.sub(r"\b(?:mobile|phone|pakistan)\b", "", words, flags=re.I)
+    wanted = slugify(words)
+    brand = str(phone.get("brand", "")).strip()
+    name = str(phone.get("name", "")).strip()
+    if name.casefold().startswith(brand.casefold() + " "):
+        name = name[len(brand):].strip()
+    found = slugify(f"{brand} {name}")
+    # Only exact model identity, not 'A57' as a match for 'A57 Pro'.
+    return bool(wanted and len(wanted.split("-")) >= 2 and
+                (wanted == found or found.endswith("-" + wanted)))
+
+
 def research_and_save(criteria):
     key = _cache_key(criteria)
     cached = cached_research(criteria)
@@ -56,6 +78,14 @@ def research_and_save(criteria):
                 "notice": "A matching web search is already running. Please retry shortly."}
     try:
         research = research_catalog(criteria)
+        if criteria.get("comparison_target") and research.get("status") == "grounded_preview":
+            document = research.get("document") or {}
+            if isinstance(document, dict):
+                phones = document.get("phones", [])
+                research["document"] = {**document, "phones": [
+                    phone for phone in (phones if isinstance(phones, list) else [])
+                    if isinstance(phone, dict) and _matches_comparison_target(phone, criteria["comparison_target"])
+                ]}
         stats, slugs = import_web_phones(research)
         research.pop("document", None)
         research["saved"] = stats

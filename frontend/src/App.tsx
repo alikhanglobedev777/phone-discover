@@ -2,7 +2,7 @@ import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useInfiniteQuery, useQueries, useQuery } from "@tanstack/react-query";
 import { getBrands, getDevice, getDevices } from "./lib/api";
 import { CatalogFilters } from "./components/CatalogFilters";
-import { ComparisonModal } from "./components/ComparisonModal";
+import { ComparisonPage } from "./components/ComparisonPage";
 import { ComparisonTray } from "./components/ComparisonTray";
 import { PhoneCard } from "./components/PhoneCard";
 import { PakistanMarket } from "./components/PakistanMarket";
@@ -52,7 +52,7 @@ export default function App() {
   const [comparisonNotice, setComparisonNotice] = useState("");
   const [marketResearchRequest, setMarketResearchRequest] = useState<{ id: number; filters: MarketSearchFilters } | null>(null);
   const [showComparison, setShowComparison] = useState(
-    () => (new URLSearchParams(window.location.search).get("compare")?.split(",").filter(Boolean).length ?? 0) >= 2,
+    () => window.location.hash === "#compare" || (new URLSearchParams(window.location.search).get("compare")?.split(",").filter(Boolean).length ?? 0) >= 2,
   );
   const deferredSearch = useDeferredValue(filters.search);
   const queryFilters = useMemo(
@@ -98,8 +98,22 @@ export default function App() {
   }, [activeSlug, compareSlugs]);
 
   useEffect(() => {
-    if (compareSlugs.length < 2) setShowComparison(false);
-  }, [compareSlugs.length]);
+    const syncRoute = () => setShowComparison(window.location.hash === "#compare");
+    window.addEventListener("hashchange", syncRoute);
+    window.addEventListener("popstate", syncRoute);
+    return () => { window.removeEventListener("hashchange", syncRoute); window.removeEventListener("popstate", syncRoute); };
+  }, []);
+
+  function openComparison() {
+    setShowComparison(true);
+    if (window.location.hash !== "#compare") window.location.hash = "compare";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function closeComparison() {
+    setShowComparison(false);
+    window.location.hash = "catalog";
+  }
 
   function toggleCompare(device: Device) {
     if (compareSlugs.includes(device.slug)) {
@@ -136,10 +150,21 @@ export default function App() {
         <a className="brand-mark" href="#top" aria-label="Phone Discover home"><span className="brand-symbol" aria-hidden="true">P.</span><span>phone<span className="brand-light">discover</span><small>FIND YOUR NEXT PHONE</small></span></a>
         <div className="nav-actions">
           <a className="nav-link" href="#catalog">Explore phones</a>
+          <button type="button" className="nav-link nav-compare-link" onClick={openComparison}>Compare phones</button>
           <a className="nav-link" href="#market">Pakistan prices</a>
           <a className="nav-link" href="#how-it-works">How it works</a>
         </div>
       </nav>
+      {showComparison ? (
+        <ComparisonPage
+          devices={compareDevices}
+          loading={comparisonLoading}
+          onClose={closeComparison}
+          onRemove={removeComparison}
+          onAdd={addComparison}
+          onOpenDevice={setActiveSlug}
+        />
+      ) : <>
       <section className="hero" id="top" aria-labelledby="hero-title">
         <div className="hero-content">
           <p className="eyebrow"><span className="eyebrow-line" aria-hidden="true"/> A smarter way to choose</p>
@@ -148,6 +173,7 @@ export default function App() {
           <div className="hero-actions">
             <a className="hero-cta" href="#catalog">Explore all phones <span aria-hidden="true">↗</span></a>
             <a className="hero-secondary" href="#market">Browse PKR prices <span aria-hidden="true">→</span></a>
+            <button className="hero-secondary hero-compare" type="button" onClick={openComparison}>Compare phones <span aria-hidden="true">↗</span></button>
           </div>
           <p className="hero-smallprint">Explore freely · Compare up to three phones · Price evidence clearly labeled</p>
         </div>
@@ -214,32 +240,22 @@ export default function App() {
       <PakistanMarket onOpenDevice={setActiveSlug} onCompareDevice={addComparison}
         onResearchWeb={(marketFilters) => setMarketResearchRequest((previous) => ({ id: (previous?.id ?? 0) + 1, filters: marketFilters }))} />
       <footer className="site-footer"><div><a className="footer-brand" href="#top">phone<span>discover</span>.</a><p>Know your options. Choose on your terms.</p></div><div className="footer-links"><a href="#catalog">Explore phones</a><a href="#market">Pakistan prices</a><a href="#catalog">Phone catalog</a><a href="/admin/">Admin</a></div><p className="footer-note">PKR market prices are observed asking prices, not guaranteed offers. Reference catalog offers may use other currencies. Verify condition, PTA status and sellers independently.</p></footer>
+      </>}
       <AssistantDrawer
         marketResearchRequest={marketResearchRequest}
         onOpenDevice={(slug) => setActiveSlug(slug)}
         onCompareDevice={addComparison}
       />
-      <ComparisonTray
+      {!showComparison && <ComparisonTray
         devices={compareDevices}
         selectionCount={compareSlugs.length}
         notice={comparisonNotice}
         loading={comparisonLoading}
         onRemove={removeComparison}
         onClear={() => { setCompareSlugs([]); setComparisonNotice(""); }}
-        onCompare={() => setShowComparison(true)}
-      />
-      {showComparison && (
-        <ComparisonModal
-          devices={compareDevices}
-          loading={comparisonLoading}
-          onClose={() => setShowComparison(false)}
-          onRemove={removeComparison}
-          onOpenDevice={(slug) => {
-            setShowComparison(false);
-            setActiveSlug(slug);
-          }}
-        />
-      )}
+        onCompare={openComparison}
+      />}
+
       {activeSlug && activeQuery.isPending && <div className="detail-backdrop" role="presentation"><div className="detail-load-state" role="status"><p>Loading phone details…</p><button type="button" onClick={() => setActiveSlug(null)}>Close</button></div></div>}
       {activeSlug && activeQuery.isError && <div className="detail-backdrop" role="presentation"><div className="detail-load-state" role="alert"><p>We couldn't load this phone's details.</p><div><button type="button" onClick={() => void activeQuery.refetch()}>Try again</button><button type="button" onClick={() => setActiveSlug(null)}>Close</button></div></div></div>}
       {activeQuery.data && activeSlug && <PhoneDetail device={activeQuery.data} onClose={() => setActiveSlug(null)} />}
