@@ -196,7 +196,7 @@ export default function App() {
             />
           ))}
         </div>
-        {!devicesQuery.isError && deviceCount > 0 && (
+        {deviceCount > 0 && (
           <div className="catalog-more" aria-live="polite">
             <span>Showing {devices.length.toLocaleString("en-PK")} of {deviceCount.toLocaleString("en-PK")} phones</span>
             {devicesQuery.hasNextPage && <button type="button" disabled={devicesQuery.isFetchingNextPage} onClick={() => void devicesQuery.fetchNextPage()}>{devicesQuery.isFetchingNextPage ? "Loading more phones…" : "Load more phones ↓"}</button>}
