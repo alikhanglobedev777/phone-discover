@@ -5,6 +5,12 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from django.conf import settings
+from django.db.models import Q
+import re
+from django.utils.text import slugify
+from rest_framework import serializers
+
+from catalog.models import Device
 
 from .models import RecommendationQuery
 from .conversation import build_conversation_criteria, previous_context, store_context, forget_context, RESET_PATTERN
@@ -20,6 +26,59 @@ from .services import (
     rank_variants,
     serialise_results,
 )
+
+
+class ComparisonLookupSerializer(serializers.Serializer):
+    query = serializers.CharField(min_length=3, max_length=100, trim_whitespace=True)
+
+
+class ComparisonPhoneLookupView(APIView):
+    """Public, rate-limited exact-model lookup; research only on a local miss."""
+
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "conversation"
+
+    def post(self, request):
+        serializer = ComparisonLookupSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        requested = serializer.validated_data["query"]
+        normalized = slugify(re.sub(r"\b\d+\s*(?:gb|tb)\b", "", requested, flags=re.I))
+        local = Device.objects.filter(is_published=True).select_related("brand").filter(
+            Q(name__icontains=requested) | Q(slug__icontains=normalized)
+        )[:5]
+        def rows(devices):
+            return [{"slug": d.slug, "name": d.name, "brand": d.brand.name,
+                     "primary_image_url": d.primary_image_url, "data_source": d.data_source}
+                    for d in devices]
+        matches = rows(local)
+        if matches:
+            return Response({"status": "found_local", "devices": matches,
+                             "notice": "This phone is already in the catalog.", "sources": []})
+        if not research_configured():
+            return Response({"status": "unavailable", "devices": [], "sources": [],
+                             "notice": "Web research is not configured. Please try another phone."})
+        if not GeminiResearchThrottle().allow_request(request, self):
+            return Response({"status": "rate_limited", "devices": [], "sources": [],
+                             "notice": "Research limit reached. Please try again later."}, status=429)
+        import uuid
+        from .local_rank import interpret_local_request
+        criteria = interpret_local_request({"message": requested, "session_id": uuid.uuid4(),
+                                            "strict_budget": True, "max_results": 5})
+        criteria["device_query"] = requested
+        criteria["comparison_target"] = requested
+        research = research_and_save(criteria)
+        slugs = [card.get("device", {}).get("slug") for card in research.get("results", [])]
+        candidates = Device.objects.filter(is_published=True).select_related("brand").filter(
+            Q(slug__in=[slug for slug in slugs if slug]) | Q(slug=normalized)
+        )[:5]
+        matched = rows(candidates)
+        return Response({"status": "researched" if matched else research.get("status", "not_found"),
+                         "devices": matched,
+                         "sources": research.get("sources", []),
+                         "saved": research.get("saved", {}),
+                         "notice": ("Source-backed phone information was saved to the catalog. Review details and prices before buying."
+                                    if matched else "No source-backed details for this exact model passed validation. Try another model name."
+                                    if research.get("status") == "grounded_preview" else research.get("notice") or "No verifiable matching phone was found.")})
 
 
 class RecommendationView(APIView):
