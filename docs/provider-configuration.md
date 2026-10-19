@@ -1,7 +1,7 @@
 # Switching AI and web-search providers
 
-The integrations support Gemini, OpenAI, Tavily Search, and the keyless product
-page fallback. Change environment settings and restart Django; application code
+The integrations support Gemini, OpenAI, Groq for chat/guidance, Tavily Search,
+and the keyless product page fallback. Change environment settings and restart Django; application code
 does not need changing when switching between these supported services. Each
 service keeps its own quota, available models and account requirements.
 
@@ -15,9 +15,9 @@ API_PROVIDER=auto
 WEB_SEARCH_PROVIDER=auto
 ```
 
-With auto selection, an `AIza...` key selects Gemini, an `sk-...` key selects
-OpenAI, and a `tvly-...` key selects Tavily. If your key has another format, set
-`API_PROVIDER=gemini`, `openai`, or `tavily` explicitly. Unknown keys are reported
+With auto selection, an `AIza...` key selects Gemini, a `gsk_...` key selects Groq, an `sk-...` key selects OpenAI, and a
+`tvly-...` key selects Tavily. If your key has another format, set
+`API_PROVIDER=gemini`, `openai`, `groq`, or `tavily` explicitly. Unknown keys are reported
 as a configuration error and are never tried against several services.
 
 When `API_KEY` is nonempty, only that key is used. Old provider-specific keys are
@@ -25,6 +25,8 @@ ignored, so replacing the global key cannot accidentally send it to another
 service or run requests against an old account.
 
 Gemini and OpenAI support AI guidance and their respective built-in web search.
+Groq supports AI explanations/guidance, but does NOT become a cited phone-price
+research source. Use Gemini, Tavily, or permitted source pages for price research.
 Tavily is a search provider: Tavily alone can discover product pages, extract
 supported facts, save new phones/prices, and return cards without an AI model.
 AI general guidance stays disabled in Tavily-only mode.
@@ -46,7 +48,7 @@ OPENAI_API_KEY=
 TAVILY_API_KEY=your-tavily-key
 ```
 
-AI auto selection prefers Gemini, then OpenAI, otherwise local explanations.
+AI auto selection prefers Gemini, then OpenAI, then Groq, otherwise local explanations.
 Search auto selection prefers Tavily, then Gemini, then OpenAI, otherwise the
 source-page fallback. To choose explicitly:
 
@@ -57,7 +59,7 @@ OPENAI_API_KEY=your-openai-key
 TAVILY_API_KEY=your-tavily-key
 ```
 
-Model overrides per service remain `OPENAI_CHAT_MODEL` and `GEMINI_CHAT_MODEL`.
+Model overrides per service are `OPENAI_CHAT_MODEL`, `GEMINI_CHAT_MODEL`, and `GROQ_MODEL`.
 `WEB_SEARCH_PROVIDER=source_pages` uses the existing website parser without an
 API key. Tavily requests use basic search with automatic upgrades disabled.
 If the selected service fails or exhausts quota, research falls back to supported

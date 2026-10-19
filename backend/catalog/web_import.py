@@ -147,7 +147,7 @@ def import_web_phones(research):
                 observation.listing_status = facts["listing"]
                 observation.observed_at = now
                 observation.reviewed_at = None
-                observation.notes = "Automatically extracted from Google-grounded sources at this retrieval time. Price, specifications, city and seller-reported PTA status have not been independently reviewed."
+                observation.notes = "Automatically extracted from source-linked research at this retrieval time. Price, specifications, city and seller-reported PTA status have not been independently reviewed."
                 observation.full_clean()
                 observation.save()
                 source.last_checked_at = now

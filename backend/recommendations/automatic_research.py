@@ -18,7 +18,8 @@ def _cache_key(criteria):
     return "catalog-research:" + hashlib.sha256(json.dumps(
         {"criteria": {k: criteria.get(k) for k in allowed}, "provider": search_selection(),
          "credential_version": hashlib.sha256(key_for(search_selection()).encode()).hexdigest(),
-         "model": model_for(search_selection()) if search_selection() in ("gemini", "openai") else "",
+         "model": (settings.GROQ_WEB_MODEL if search_selection() == "groq" else model_for(search_selection()))
+         if search_selection() in ("gemini", "openai", "groq") else "",
          "sources": list(settings.GEMINI_RESEARCH_SOURCE_DOMAINS)},
         default=str, sort_keys=True,
     ).encode()).hexdigest()
