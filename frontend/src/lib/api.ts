@@ -6,13 +6,13 @@ async function request<T>(url: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export function getDevices(filters: DeviceFilters) {
+export function getDevices(filters: DeviceFilters, page = 1) {
   const query = new URLSearchParams();
   Object.entries(filters).forEach(([key, value]) => {
     if (value.trim()) query.set(key, value.trim());
   });
-  const suffix = query.size ? `?${query.toString()}` : "";
-  return request<Paginated<Device>>(`/api/catalog/devices/${suffix}`);
+  query.set("page", String(page));
+  return request<Paginated<Device>>(`/api/catalog/devices/?${query.toString()}`);
 }
 
 export function getDevice(slug: string) {

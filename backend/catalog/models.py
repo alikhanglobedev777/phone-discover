@@ -1,5 +1,5 @@
 from django.core.exceptions import ValidationError
-from django.core.validators import MaxValueValidator, MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
 from django.db import models
 from django.db.models import F, Q
 from django.utils import timezone
@@ -63,9 +63,41 @@ class Device(models.Model):
         return f"{self.brand.name} {self.name}"
 
 
+class DeviceColor(models.Model):
+    """A documented device finish, not a promise of local availability."""
+
+    device = models.ForeignKey(Device, on_delete=models.CASCADE, related_name="colors")
+    name = models.CharField(max_length=80)
+    hex_code = models.CharField(
+        max_length=7, blank=True,
+        validators=[RegexValidator(r"^#[0-9A-Fa-f]{6}$", "Use a six-digit hex color, e.g. #8B263E.")],
+        help_text="Optional representative swatch. Leave blank if the finish cannot be represented accurately.",
+    )
+    sort_order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+        constraints = [models.UniqueConstraint(fields=["device", "name"], name="unique_device_finish")]
+
+    def __str__(self):
+        return f"{self.device} — {self.name}"
+
+
 class DeviceImage(models.Model):
+    class View(models.TextChoices):
+        UNSPECIFIED = "unspecified", "Product photo / angle unknown"
+        FRONT = "front", "Front"
+        BACK = "back", "Back"
+        SIDE = "side", "Side"
+        DETAIL = "detail", "Detail"
+
     device = models.ForeignKey(Device, on_delete=models.CASCADE, related_name="images")
     image_url = models.URLField(max_length=1000)
+    view = models.CharField(max_length=12, choices=View.choices, default=View.UNSPECIFIED)
+    color = models.ForeignKey(
+        DeviceColor, on_delete=models.SET_NULL, related_name="photos", null=True, blank=True,
+        help_text="Set only for a photo of this exact finish. Leave blank for generic/unidentified photos.",
+    )
     alt_text = models.CharField(max_length=200, blank=True)
     sort_order = models.PositiveSmallIntegerField(default=0)
     is_primary = models.BooleanField(default=False)
@@ -84,6 +116,11 @@ class DeviceImage(models.Model):
                 name="catalog_image_device_idx",
             )
         ]
+
+    def clean(self):
+        super().clean()
+        if self.color_id and self.device_id and self.color.device_id != self.device_id:
+            raise ValidationError({"color": "Photo finish must belong to the same phone."})
 
     def __str__(self):
         return self.alt_text or f"Image for {self.device}"
@@ -465,3 +502,50 @@ class IngestionCandidate(models.Model):
 
     def __str__(self):
         return f"{self.candidate_type} research candidate #{self.pk} ({self.status})"
+
+
+from django.conf import settings  # imported here to avoid touching existing catalog/model imports
+
+
+class PriceRefreshRun(models.Model):
+    """Operator-visible audit trail; remote source contents are never stored here."""
+
+    class Status(models.TextChoices):
+        QUEUED = "queued", "Queued"
+        RUNNING = "running", "Running"
+        COMPLETED = "completed", "Completed"
+        FAILED = "failed", "Failed"
+
+    class Origin(models.TextChoices):
+        ADMIN = "admin", "Admin button"
+        SCHEDULED = "scheduled", "48-hour scheduler"
+        CLI = "cli", "Command line"
+
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.QUEUED, db_index=True)
+    origin = models.CharField(max_length=12, choices=Origin.choices, default=Origin.CLI)
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="price_refresh_runs"
+    )
+    force = models.BooleanField(default=False)
+    counts = models.JSONField(default=dict, blank=True)
+    notice = models.CharField(max_length=240, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at", "-pk"]
+
+    def __str__(self):
+        return f"Price refresh #{self.pk} ({self.status})"
+
+
+class PriceRefreshCheck(models.Model):
+    """Per-variant attempt cursor: failed/unlicensed phones cannot starve later rows."""
+
+    variant = models.OneToOneField(DeviceVariant, on_delete=models.CASCADE, related_name="price_refresh_check")
+    last_attempted_at = models.DateTimeField(db_index=True)
+    last_result = models.CharField(max_length=32, blank=True)
+
+    def __str__(self):
+        return f"{self.variant} checked at {self.last_attempted_at}"

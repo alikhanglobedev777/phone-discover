@@ -1,8 +1,8 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  activeFilterSummary, catalogStatus, converse, conversationPayload, forgetConversation, formatPriceRange, safeSourceUrl,
+  activeFilterSummary, catalogStatus, converse, conversationPayload, forgetConversation, formatPriceRange, safeSourceUrl, searchProviderLabel,
 } from "../lib/pakistan";
 import type { ConversationRequest, LocalResult, ResearchPreview, AIGuidance } from "../lib/pakistan";
 
@@ -41,7 +41,7 @@ function uuid() {
 
 const GREETING: ChatMessage = {
   id: "welcome", role: "assistant",
-  text: "Assalam-o-alaikum! Tell me your PKR budget, city, PTA requirement, and what matters most. I’ll check eligible local price evidence first.",
+  text: "Hi! What phone can I help you find?",
 };
 
 function PriceCard({ result, onOpenDevice, onCompareDevice }: {
@@ -69,8 +69,8 @@ function PriceCard({ result, onOpenDevice, onCompareDevice }: {
       {result.tradeoffs.length > 0 && <p className="pk-evidence-note">Consider: {result.tradeoffs.join(" · ")}</p>}
       <div className="pk-result-actions">
         {sourceUrl && <a href={sourceUrl} target="_blank" rel="noopener noreferrer">Price source</a>}
-        <button type="button" onClick={() => onOpenDevice(device.slug)}>Phone details</button>
-        <button type="button" onClick={() => onCompareDevice(device.slug)}>Compare</button>
+        <button type="button" onClick={() => onOpenDevice(device.slug)} aria-label={`View details for ${device.name}`}>Details</button>
+        <button type="button" onClick={() => onCompareDevice(device.slug)} aria-label={`Add ${device.name} to comparison`}>+ Compare</button>
       </div>
     </article>
   );
@@ -98,7 +98,19 @@ export function RecommendationAssistant({ onOpenDevice, onCompareDevice }: Props
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const requestRef = useRef<AbortController | null>(null);
+  const chatStreamRef = useRef<HTMLDivElement | null>(null);
+  const formRef = useRef<HTMLFormElement | null>(null);
   const generationRef = useRef(0);
+
+  useEffect(() => {
+    const stream = chatStreamRef.current;
+    if (stream) stream.scrollTop = stream.scrollHeight;
+  }, [messages, loading]);
+
+  useEffect(() => () => {
+    generationRef.current += 1;
+    requestRef.current?.abort();
+  }, []);
 
   function change<K extends keyof EditableFilters>(key: K, value: EditableFilters[K]) {
     setPending((current) => ({ ...current, [key]: value }));
@@ -195,15 +207,13 @@ export function RecommendationAssistant({ onOpenDevice, onCompareDevice }: Props
   return (
     <section className="assistant-card assistant-workspace" id="assistant" aria-labelledby="assistant-title">
       <header className="assistant-header">
-        <div>
-          <p className="eyebrow">Phone Discover · Pakistan</p>
-          <h2 id="assistant-title">Your phone buying copilot.</h2>
-          <p>Local catalog first. When no match is found, automatic web research can find phones, save sourced details, and add them to the catalog. Web-researched prices and specifications are labeled. Conversation memory stays in this tab.</p>
-        </div>
-        <button type="button" className="assistant-new-chat" onClick={() => void newChat()}>New chat + forget</button>
+        <h2 id="assistant-title">Chat</h2>
+        <button type="button" className="assistant-new-chat" onClick={() => void newChat()} aria-label="Start a new chat and clear this session's preferences">New chat</button>
       </header>
       <div className="assistant-layout">
-        <aside className="assistant-requirements">
+        <details className="assistant-preferences">
+          <summary><span>Preferences</span><span className="preferences-chevron" aria-hidden="true">⌄</span></summary>
+          <aside className="assistant-requirements" aria-label="Recommendation preferences">
           <div className="assistant-control">
             <span className="assistant-control-label">What matters most?</span>
             <div className="priority-grid">
@@ -227,14 +237,16 @@ export function RecommendationAssistant({ onOpenDevice, onCompareDevice }: Props
           </div>
           <label className="strict-budget-toggle"><input type="checkbox" disabled={loading} checked={strictBudget} onChange={(event) => { setStrictBudget(event.target.checked); change("strict_budget", event.target.checked); }} /><span><strong>Strict PKR budget</strong><small>Require observed upper price bound to fit</small></span></label>
           <label className="strict-budget-toggle"><input type="checkbox" disabled={loading || status.data?.guidance_available === false} checked={guidanceEnabled} onChange={(event) => setGuidanceEnabled(event.target.checked)} /><span><strong>Use AI general guidance</strong><small>{status.data?.guidance_available === false ? "Add a Gemini or OpenAI key to enable AI guidance. Search and catalog features still work." : `Uses ${status.data?.ai_provider || "the configured AI provider"} for general advice when no local matches exist. Prices and PTA claims remain unverified.`}</small></span></label>
-          {status.data?.automatic_research ? <p className="pk-evidence-note"><strong>Automatic web research is on.</strong> Search provider: {status.data.search_provider.replaceAll("_", " ")}. Missing phones are researched and sourced results saved to the catalog.</p> : <label className="strict-budget-toggle"><input type="checkbox" disabled={loading || !researchAvailable} checked={researchEnabled && researchAvailable} onChange={(event) => setResearchEnabled(event.target.checked)} /><span><strong>Request web research</strong><small>{status.isError ? "Could not check web research availability." : status.isPending ? "Checking availability..." : researchAvailable ? "Search external sources with the configured provider." : "Web research is currently disabled or unconfigured."}</small></span></label>}
+          {status.data?.automatic_research ? <p className="pk-evidence-note"><strong>Automatic web research is on.</strong> Search provider: {searchProviderLabel(status.data.search_provider)}. Missing phones are researched and sourced results saved to the catalog.</p> : <label className="strict-budget-toggle"><input type="checkbox" disabled={loading || !researchAvailable} checked={researchEnabled && researchAvailable} onChange={(event) => setResearchEnabled(event.target.checked)} /><span><strong>Request web research</strong><small>{status.isError ? "Could not check web research availability." : status.isPending ? "Checking availability..." : researchAvailable ? "Search external sources with the configured provider." : "Web research is currently disabled or unconfigured."}</small></span></label>}
           {status.data?.configuration_error && <p className="pk-evidence-note" role="status">{status.data.configuration_error}</p>}
-          <div className="quick-prompts"><span>Try asking (full examples start a new search)</span>{QUICK_PROMPTS.map((prompt, index) => <button type="button" disabled={loading} key={prompt} onClick={() => choosePrompt(prompt, index)}>{prompt}</button>)}</div>
-        </aside>
+          <div className="quick-prompts"><span>Suggested questions</span>{QUICK_PROMPTS.map((prompt, index) => <button type="button" disabled={loading} key={prompt} onClick={() => choosePrompt(prompt, index)}>{prompt}</button>)}</div>
+          </aside>
+        </details>
         <div className="assistant-conversation">
+          {status.isError && <p className="assistant-service-warning" role="status">Service temporarily unavailable. You can try again shortly.</p>}
           {status.data?.catalog_status === "empty" && <p className="state-message" role="status">The phone catalog is empty. Local recommendations will appear after phones and Pakistani prices are imported.</p>}
           {status.data?.catalog_status === "missing_prices" && <p className="state-message" role="status">Catalog phones are available, but their Pakistani price evidence needs adding or refreshing.</p>}
-          <div className="chat-stream" aria-live="polite" aria-relevant="additions">
+          <div className="chat-stream" ref={chatStreamRef} role="log" aria-label="Assistant conversation" aria-live="polite" aria-relevant="additions">
             {messages.map((entry) => <div className={`chat-message chat-${entry.role}`} key={entry.id}>
               <div className="chat-avatar">{entry.role === "assistant" ? "PD" : "You"}</div>
               <div className="chat-bubble">
@@ -251,10 +263,13 @@ export function RecommendationAssistant({ onOpenDevice, onCompareDevice }: Props
             </div>)}
             {loading && <div className="chat-message chat-assistant"><div className="chat-avatar">PD</div><div className="chat-bubble" role="status">{status.data?.automatic_research ? "Checking the catalog, then researching the web if needed. This may take a minute…" : "Checking published devices and eligible price observations…"}</div></div>}
           </div>
-          <form className="assistant-composer" onSubmit={(event) => void submit(event)}>
-            <label htmlFor="pk-chat-message" className="pk-composer-label">Ask in English or Roman Urdu</label>
-            <textarea id="pk-chat-message" maxLength={1000} disabled={loading} value={message} onChange={(event) => setMessage(event.target.value)} placeholder="80 hazar tak Lahore mein used PTA approved gaming phone batao…" rows={3} />
-            <div><span role={error ? "alert" : undefined}>{error || "PKR observed asking prices only. Check PTA, condition and seller details yourself."}</span><button type="submit" disabled={loading || !message.trim()}>{loading ? "Finding matches…" : "Find local phones →"}</button></div>
+          <form className="assistant-composer" ref={formRef} onSubmit={(event) => void submit(event)}>
+            <label htmlFor="pk-chat-message" className="assistant-sr-only">Message the phone assistant</label>
+            <div className="assistant-compose-row">
+              <textarea id="pk-chat-message" maxLength={1000} disabled={loading} value={message} onChange={(event) => setMessage(event.target.value)} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); formRef.current?.requestSubmit(); } }} placeholder="Ask about a phone, budget or PTA status…" rows={2} />
+              <button type="submit" disabled={loading || !message.trim()} aria-label={loading ? "Searching for phones" : "Send message"}>{loading ? "…" : "Send ↗"}</button>
+            </div>
+            {error && <p className="assistant-input-error" role="alert">{error}</p>}
           </form>
         </div>
       </div>
