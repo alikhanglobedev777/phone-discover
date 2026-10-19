@@ -1,0 +1,14 @@
+/* Explicit, opt-in research alternative when the strict local PKR search is empty. */
+.pk-market-no-results { max-width: 100%; border: 1px solid #eadfe2; border-radius: 20px; background: #fff; padding: 32px 22px; text-align: center; }
+.pk-market-no-results-icon { display: grid; place-items: center; margin: 0 auto 14px; width: 43px; height: 43px; border: 1px solid #ead0d9; border-radius: 50%; color: var(--wine); background: var(--wine-wash); font-size: 19px; }
+.pk-market-no-results > strong { display: block; font-size: clamp(18px, 3vw, 23px); color: #111; }
+.pk-market-no-results > p { max-width: 590px; margin: 12px auto; color: #4b4145; line-height: 1.6; }
+.pk-market-research-action { display: grid; justify-items: center; gap: 10px; margin: 22px auto 12px; }
+.pk-market-research-action > button { min-height: 44px; padding: 11px 22px; background: var(--wine); color: #fff; border: 1px solid var(--wine); border-radius: 10px; font: inherit; font-weight: 750; cursor: pointer; transition: transform 150ms ease, background 150ms ease; }
+.pk-market-research-action > button:hover { background: var(--wine-dark); transform: translateY(-1px); }
+.pk-market-research-action > button:focus-visible, .pk-market-reset-link:focus-visible { outline: 3px solid var(--wine); outline-offset: 3px; }
+.pk-market-research-action > span { display: block; max-width: 510px; font-size: 12px; line-height: 1.6; color: #62585d; }
+.pk-market-no-results .pk-market-reset-link { display: inline-block; margin: 6px auto 0; border: 1px solid #e7c8d4; border-radius: 9px; background: #fff; color: var(--wine); padding: 10px 16px; font: inherit; font-weight: 700; cursor: pointer; }
+.pk-market-no-results .pk-market-reset-link:hover { background: var(--wine-wash); }
+.pk-market-research-unavailable { font-size: 12px; }
+@media (prefers-reduced-motion: reduce) { .pk-market-research-action > button { transition: none; } }

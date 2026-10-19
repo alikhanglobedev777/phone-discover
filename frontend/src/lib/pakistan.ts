@@ -180,6 +180,39 @@ export function safeSourceUrl(value: unknown): string | null {
   }
 }
 
+/** Prepare an explicit, user-reviewed handoff from the local market to the assistant.
+ * Searching the database alone never spends research quota or writes catalog records.
+ */
+export function marketResearchHandoff(filters: MarketSearchFilters): {
+  message: string;
+  pending: Partial<ConversationRequest>;
+} {
+  const condition = {
+    box_pack: "new / box-packed", open_box: "open box", used: "used", refurbished: "refurbished",
+  }[filters.condition] ?? filters.condition;
+  const requirements = [
+    filters.q.trim() && `Phone or chipset: ${filters.q.trim()}`,
+    filters.city.trim() && `City: ${filters.city.trim()}`,
+    filters.budget_pkr.trim() && `Maximum budget: PKR ${filters.budget_pkr.trim()}`,
+    condition && `Condition: ${condition}`,
+    filters.pta_status && `PTA status: ${filters.pta_status.replaceAll("_", " ")}`,
+    filters.pta_verification && `PTA evidence: ${filters.pta_verification}`,
+    filters.ram_min && `Minimum RAM: ${filters.ram_min} GB`,
+  ].filter(Boolean);
+  return {
+    message: `Please use Phone Discover Intelligence Web Research to find Pakistan phone listings${requirements.length ? ` matching: ${requirements.join("; ")}` : ""}. Show linked sources and the exact RAM/storage and asking price. Clearly label unverified city availability and PTA status. Do not invent products, prices or approvals.`,
+    pending: {
+      reset_context: true,
+      city: filters.city.trim() || null,
+      budget_pkr: filters.budget_pkr.trim() || null,
+      condition: filters.condition || null,
+      pta_status: filters.pta_status || null,
+      pta_verification: filters.pta_verification || null,
+      ram_min: filters.ram_min ? Number(filters.ram_min) : null,
+    },
+  };
+}
+
 export function marketQuery(filters: MarketSearchFilters, page: number): string {
   const params = new URLSearchParams({ require_price: "true", page: String(page), page_size: "9" });
   for (const [key, value] of Object.entries(filters)) {

@@ -1,3 +1,5 @@
+import { marketResearchHandoff } from "../lib/pakistan";
+import type { MarketSearchFilters } from "../lib/pakistan";
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -9,6 +11,7 @@ import type { ConversationRequest, LocalResult, ResearchPreview, AIGuidance } fr
 type Props = {
   onOpenDevice: (slug: string) => void;
   onCompareDevice: (slug: string) => void;
+  marketResearchRequest?: { id: number; filters: MarketSearchFilters } | null;
 };
 
 type ChatMessage = {
@@ -76,7 +79,7 @@ function PriceCard({ result, onOpenDevice, onCompareDevice }: {
   );
 }
 
-export function RecommendationAssistant({ onOpenDevice, onCompareDevice }: Props) {
+export function RecommendationAssistant({ onOpenDevice, onCompareDevice, marketResearchRequest }: Props) {
   const queryClient = useQueryClient();
   const status = useQuery({ queryKey: ["catalog-status"], queryFn: catalogStatus, staleTime: 30_000 });
   const researchAvailable = status.data?.research_available === true;
@@ -101,6 +104,29 @@ export function RecommendationAssistant({ onOpenDevice, onCompareDevice }: Props
   const chatStreamRef = useRef<HTMLDivElement | null>(null);
   const formRef = useRef<HTMLFormElement | null>(null);
   const generationRef = useRef(0);
+  const lastMarketRequestId = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!marketResearchRequest || lastMarketRequestId.current === marketResearchRequest.id) return;
+    lastMarketRequestId.current = marketResearchRequest.id;
+    const handoff = marketResearchHandoff(marketResearchRequest.filters);
+    // This is a fresh, user-initiated search, not a continuation of old preferences.
+    requestRef.current?.abort();
+    generationRef.current += 1;
+    setLoading(false);
+    setSessionId(uuid());
+    setMessages([GREETING]);
+    setPending(handoff.pending);
+    setMessage(handoff.message);
+    setResearchEnabled(true);
+    setBudget(marketResearchRequest.filters.budget_pkr);
+    setCity(marketResearchRequest.filters.city);
+    setCondition(marketResearchRequest.filters.condition);
+    setPtaStatus(marketResearchRequest.filters.pta_status);
+    setPtaVerification(marketResearchRequest.filters.pta_verification);
+    setRamMin(marketResearchRequest.filters.ram_min);
+    setError("");
+  }, [marketResearchRequest]);
 
   useEffect(() => {
     const stream = chatStreamRef.current;

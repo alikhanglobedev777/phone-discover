@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { RecommendationAssistant } from "./RecommendationAssistant";
+import type { MarketSearchFilters } from "../lib/pakistan";
 
 type Props = {
   onOpenDevice: (slug: string) => void;
   onCompareDevice: (slug: string) => void;
+  marketResearchRequest?: { id: number; filters: MarketSearchFilters } | null;
 };
 
-export function AssistantDrawer({ onOpenDevice, onCompareDevice }: Props) {
+export function AssistantDrawer({ onOpenDevice, onCompareDevice, marketResearchRequest }: Props) {
   const [open, setOpen] = useState(false);
   const [hasOpened, setHasOpened] = useState(false);
   const launcherRef = useRef<HTMLButtonElement>(null);
@@ -14,6 +16,9 @@ export function AssistantDrawer({ onOpenDevice, onCompareDevice }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
 
   function openDrawer() { setHasOpened(true); setOpen(true); }
+  useEffect(() => {
+    if (marketResearchRequest) openDrawer();
+  }, [marketResearchRequest]);
   function closeDrawer() { setOpen(false); }
 
   useEffect(() => {
@@ -85,6 +90,7 @@ export function AssistantDrawer({ onOpenDevice, onCompareDevice }: Props) {
             <button type="button" ref={closeRef} onClick={closeDrawer} aria-label="Close phone assistant">Close <span aria-hidden="true">×</span></button>
           </div>
           <RecommendationAssistant
+            marketResearchRequest={marketResearchRequest}
             onOpenDevice={(slug) => { closeDrawer(); onOpenDevice(slug); }}
             onCompareDevice={(slug) => { onCompareDevice(slug); closeDrawer(); }}
           />
