@@ -1,6 +1,7 @@
 """Search adapters returning one shared, source-validated research format."""
 
 import json
+import logging
 import re
 from urllib.error import HTTPError
 from urllib.request import Request, build_opener
@@ -15,9 +16,21 @@ from .source_research import research_source_pages, research_urls
 from django.utils.text import slugify
 
 
+logger = logging.getLogger(__name__)
+
+
 def _failure(provider, status="unavailable"):
+    # Never put provider response bodies or credentials in visitor-facing errors.
+    if provider == "groq" and status == "access_denied":
+        notice = ("Groq denied access to browser research (HTTP 403). Check project/model "
+                  "permissions. Source-page lookup can still be used.")
+    elif provider == "groq" and status == "authentication_failed":
+        notice = ("Groq rejected the credentials used by this server (HTTP 401). "
+                  "Check Render environment settings, including API_KEY overrides.")
+    else:
+        notice = f"{provider.title()} research is {status.replace('_', ' ')}. Source-page lookup can still be used."
     return {"status": status, "provider": provider, "sources": [], "summary": "", "results": [],
-            "notice": f"{provider.title()} research is {status.replace('_', ' ')}. Source-page lookup can still be used."}
+            "notice": notice}
 
 
 def _query(criteria):
@@ -191,8 +204,12 @@ def research_with_groq(criteria):
         # and requires a concrete RAM/storage variant with an explicit PKR price.
         return research_urls(criteria, links, provider="groq")
     except HTTPError as exc:
+        # Log only the numeric status, never the Authorization header or body.
+        # 403 can mean project/model permissions even with a valid API key.
+        logger.warning("Groq browser research rejected request: HTTP %s; model=%s", exc.code, model)
         status = ("quota_exceeded" if exc.code == 429 else
-                  "authentication_failed" if exc.code in (401, 403) else "unavailable")
+                  "authentication_failed" if exc.code == 401 else
+                  "access_denied" if exc.code == 403 else "unavailable")
         return _failure("groq", status)
     except (OSError, ValueError, KeyError, TypeError, AttributeError):
         return _failure("groq")
@@ -208,7 +225,7 @@ def research_catalog(criteria):
     result.setdefault("provider", provider)
     result.setdefault("results", [])
     result.setdefault("summary", "")
-    if provider != "source_pages" and result["status"] in ("unavailable", "quota_exceeded", "authentication_failed", "no_sources", "unsupported_model"):
+    if provider != "source_pages" and result["status"] in ("unavailable", "quota_exceeded", "authentication_failed", "access_denied", "no_sources", "unsupported_model"):
         fallback = research_source_pages(criteria)
         if fallback["status"] == "grounded_preview":
             fallback["fallback_from"] = provider

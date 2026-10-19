@@ -104,6 +104,22 @@ class GroqWebResearchTests(SimpleTestCase):
             self.assertEqual(opener.return_value.open.call_count, 1)
 
     @patch("recommendations.research_providers.build_opener")
+    def test_production_http_401_and_403_have_distinct_safe_statuses(self, opener):
+        for code, expected in ((401, "authentication_failed"), (403, "access_denied")):
+            with self.subTest(code=code):
+                opener.return_value.open.side_effect = HTTPError(
+                    "https://api.groq.com", code, "private-response-must-not-leak", {}, None)
+                with patch("recommendations.research_providers.research_source_pages", return_value={
+                    "status": "no_sources", "provider": "source_pages", "document": {"phones": []},
+                    "sources": [], "notice": "No page evidence"}):
+                    result = research_catalog({"device_query": "A57"})
+                self.assertEqual(result["status"], expected)
+                self.assertNotIn("gsk_fake-not-real", str(result))
+                self.assertNotIn("private-response-must-not-leak", str(result))
+                if code == 403:
+                    self.assertIn("model", result["notice"])
+
+    @patch("recommendations.research_providers.build_opener")
     def test_rate_limit_fails_closed(self, opener):
         opener.return_value.open.side_effect = HTTPError(
             "https://api.groq.com", 429, "quota", {}, None)
