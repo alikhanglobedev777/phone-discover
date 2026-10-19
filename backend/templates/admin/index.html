@@ -1,0 +1,178 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_dashboard %}
+
+{% block bodyclass %}{{ block.super }} pd-admin-home{% endblock %}
+{% block breadcrumbs %}{% endblock %}
+{% block content_title %}{% endblock %}
+
+{% block content %}
+{% phone_discover_admin_stats as dashboard %}
+<div class="pd-dashboard">
+  <section class="pd-hero" aria-labelledby="pd-page-title">
+    <div class="pd-hero__copy">
+      <span class="pd-eyebrow"><span class="pd-eyebrow__dot" aria-hidden="true"></span> PHONE DISCOVER · CONTROL CENTER</span>
+      <h1 id="pd-page-title">Your catalog, under control.</h1>
+      <p>Manage smartphones, review Pakistani price evidence, and keep research organized—all from one workspace.</p>
+      <div class="pd-hero__actions">
+        {% if perms.catalog.add_device %}
+          <a class="pd-button pd-button--primary" href="{% url 'admin:catalog_device_add' %}">+ Add a phone</a>
+        {% endif %}
+        {% if perms.catalog.view_pricerefreshrun or perms.catalog.change_pricerefreshrun %}
+          <a class="pd-button pd-button--outline" href="{% url 'admin:catalog_pricerefreshrun_changelist' %}">Price refresh runs <span aria-hidden="true">↗</span></a>
+        {% endif %}
+      </div>
+    </div>
+    <div class="pd-hero__side" aria-hidden="true">
+      <span class="pd-hero__monogram">PD</span>
+      <span class="pd-hero__side-label">RESEARCH · REVIEW · PUBLISH</span>
+    </div>
+  </section>
+
+  {% if dashboard.show_devices or dashboard.show_prices or dashboard.show_refresh %}
+  <section class="pd-stats" aria-label="Catalog overview">
+    {% if dashboard.show_devices %}
+      <div class="pd-stat">
+        <span class="pd-stat__label">Total phones</span>
+        <strong class="pd-stat__number">{{ dashboard.total_devices }}</strong>
+        <span class="pd-stat__hint">Devices in the catalog</span>
+      </div>
+      <div class="pd-stat">
+        <span class="pd-stat__label">Published phones</span>
+        <strong class="pd-stat__number">{{ dashboard.published_devices }}</strong>
+        <span class="pd-stat__hint">Visible in the public catalog</span>
+      </div>
+    {% endif %}
+    {% if dashboard.show_prices %}
+      <div class="pd-stat">
+        <span class="pd-stat__label">Unreviewed prices</span>
+        <strong class="pd-stat__number">{{ dashboard.unreviewed_prices }}</strong>
+        <span class="pd-stat__hint">Pending or web-reported evidence</span>
+      </div>
+      <div class="pd-stat">
+        <span class="pd-stat__label">Price observations</span>
+        <strong class="pd-stat__number">{{ dashboard.total_prices }}</strong>
+        <span class="pd-stat__hint">Historical PKR observations</span>
+      </div>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  <div class="pd-dashboard__columns">
+    <section class="pd-panel" aria-labelledby="pd-catalog-heading">
+      <div class="pd-panel__heading">
+        <div>
+          <span class="pd-section-label">01 / CONTENT</span>
+          <h2 id="pd-catalog-heading">Manage your catalog</h2>
+        </div>
+        <span class="pd-panel__chip">Daily work</span>
+      </div>
+      <div class="pd-action-list">
+        {% if perms.catalog.view_device or perms.catalog.change_device %}
+        <a class="pd-action" href="{% url 'admin:catalog_device_changelist' %}">
+          <span class="pd-action__number">01</span><span class="pd-action__body"><strong>Smartphones</strong><small>Edit models, specifications and publish status</small></span><span class="pd-action__arrow" aria-hidden="true">↗</span>
+        </a>
+        {% endif %}
+        {% if perms.catalog.view_devicevariant or perms.catalog.change_devicevariant %}
+        <a class="pd-action" href="{% url 'admin:catalog_devicevariant_changelist' %}">
+          <span class="pd-action__number">02</span><span class="pd-action__body"><strong>RAM &amp; storage variants</strong><small>Manage exact configurations for each phone</small></span><span class="pd-action__arrow" aria-hidden="true">↗</span>
+        </a>
+        {% endif %}
+        {% if perms.catalog.view_deviceimage or perms.catalog.change_deviceimage %}
+        <a class="pd-action" href="{% url 'admin:catalog_deviceimage_changelist' %}">
+          <span class="pd-action__number">03</span><span class="pd-action__body"><strong>Product photos</strong><small>Front, back, side and color-specific images</small></span><span class="pd-action__arrow" aria-hidden="true">↗</span>
+        </a>
+        {% endif %}
+        {% if perms.catalog.view_devicecolor or perms.catalog.change_devicecolor %}
+        <a class="pd-action" href="{% url 'admin:catalog_devicecolor_changelist' %}">
+          <span class="pd-action__number">04</span><span class="pd-action__body"><strong>Official colors</strong><small>Assign documented finishes and swatches</small></span><span class="pd-action__arrow" aria-hidden="true">↗</span>
+        </a>
+        {% endif %}
+        {% if not perms.catalog.view_device and not perms.catalog.change_device and not perms.catalog.view_devicevariant and not perms.catalog.change_devicevariant %}
+        <p class="pd-panel__empty">No catalog editing permissions assigned.</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="pd-panel" aria-labelledby="pd-market-heading">
+      <div class="pd-panel__heading">
+        <div>
+          <span class="pd-section-label">02 / RESEARCH</span>
+          <h2 id="pd-market-heading">Pricing &amp; evidence</h2>
+        </div>
+        <span class="pd-panel__chip pd-panel__chip--wine">Pakistan market</span>
+      </div>
+      <div class="pd-action-list">
+        {% if perms.catalog.view_marketpriceobservation or perms.catalog.change_marketpriceobservation %}
+        <a class="pd-action" href="{% url 'admin:catalog_marketpriceobservation_changelist' %}">
+          <span class="pd-action__number">01</span><span class="pd-action__body"><strong>Review market prices</strong><small>Inspect PKR observations, PTA claims and evidence</small></span><span class="pd-action__arrow" aria-hidden="true">↗</span>
+        </a>
+        {% endif %}
+        {% if perms.catalog.view_pricerefreshrun or perms.catalog.change_pricerefreshrun %}
+        <a class="pd-action" href="{% url 'admin:catalog_pricerefreshrun_changelist' %}">
+          <span class="pd-action__number">02</span><span class="pd-action__body"><strong>Price refresh runs</strong><small>Start a batch and inspect the update history</small></span><span class="pd-action__arrow" aria-hidden="true">↗</span>
+        </a>
+        {% endif %}
+        {% if perms.catalog.view_researchsource or perms.catalog.change_researchsource %}
+        <a class="pd-action" href="{% url 'admin:catalog_researchsource_changelist' %}">
+          <span class="pd-action__number">03</span><span class="pd-action__body"><strong>Research sources</strong><small>Manage source credibility and reuse permissions</small></span><span class="pd-action__arrow" aria-hidden="true">↗</span>
+        </a>
+        {% endif %}
+        {% if perms.catalog.view_ingestioncandidate or perms.catalog.change_ingestioncandidate %}
+        <a class="pd-action" href="{% url 'admin:catalog_ingestioncandidate_changelist' %}">
+          <span class="pd-action__number">04</span><span class="pd-action__body"><strong>Ingestion candidates</strong><small>Review proposed phone and price discoveries</small></span><span class="pd-action__arrow" aria-hidden="true">↗</span>
+        </a>
+        {% endif %}
+        {% if not perms.catalog.view_marketpriceobservation and not perms.catalog.change_marketpriceobservation and not perms.catalog.view_pricerefreshrun and not perms.catalog.change_pricerefreshrun %}
+        <p class="pd-panel__empty">No pricing review permissions assigned.</p>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+
+  <div class="pd-dashboard__footer-grid">
+    {% if dashboard.show_refresh %}
+    <section class="pd-status-panel" aria-labelledby="pd-refresh-heading">
+      <div>
+        <span class="pd-section-label">AUTOMATION</span>
+        <h2 id="pd-refresh-heading">Latest price refresh</h2>
+        {% if dashboard.latest_refresh %}
+          <p>Run #{{ dashboard.latest_refresh.pk }} · {{ dashboard.latest_refresh.get_origin_display }} · {{ dashboard.latest_refresh.created_at|date:"M j, Y H:i" }}</p>
+        {% else %}
+          <p>No refresh runs recorded yet. Open the refresh dashboard to start one.</p>
+        {% endif %}
+      </div>
+      <div class="pd-status-panel__right">
+        {% if dashboard.latest_refresh %}<span class="pd-status pd-status--{{ dashboard.latest_refresh.status }}">{{ dashboard.latest_refresh.get_status_display }}</span>{% endif %}
+        <a href="{% url 'admin:catalog_pricerefreshrun_changelist' %}">View refresh history <span aria-hidden="true">→</span></a>
+      </div>
+    </section>
+    {% endif %}
+    <section class="pd-note" aria-label="Evidence guidance">
+      <span class="pd-note__icon" aria-hidden="true">i</span>
+      <p><strong>Evidence first.</strong> Source-reported prices are not independent verification. Check device variant, PTA status, and the linked listing before approving market observations.</p>
+    </section>
+  </div>
+
+  <section class="pd-directory" aria-labelledby="pd-directory-heading">
+    <div class="pd-directory__heading"><span class="pd-section-label">DIRECTORY</span><h2 id="pd-directory-heading">All admin sections</h2><p>Every area you have permission to access, including users and research jobs.</p></div>
+    <div class="pd-directory__grid">
+      {% for app in app_list %}
+      <div class="pd-directory__group">
+        <h3>{{ app.name }}</h3>
+        <ul>
+          {% for model in app.models %}
+          <li>
+            {% if model.admin_url %}<a href="{{ model.admin_url }}">{{ model.name }} <span aria-hidden="true">↗</span></a>
+            {% elif model.add_url %}<a href="{{ model.add_url }}">{{ model.name }} <span aria-hidden="true">↗</span></a>
+            {% else %}<span>{{ model.name }}</span>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% empty %}
+      <p>No administration modules are available for your account.</p>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}

@@ -32,8 +32,8 @@ function MarketCard({ result, onOpenDevice, onCompareDevice }: Props & { result:
         {source && <p><a href={source} rel="noopener noreferrer" target="_blank">View evidence source ↗</a></p>}
       </div>
       <div className="pk-market-card-actions">
-        <button type="button" onClick={() => onOpenDevice(result.slug)}>View details</button>
-        <button type="button" onClick={() => onCompareDevice(result.slug)}>Compare</button>
+        <button type="button" onClick={() => onOpenDevice(result.slug)} aria-label={`View details for ${result.name}`}>View details</button>
+        <button type="button" onClick={() => onCompareDevice(result.slug)} aria-label={`Add ${result.name} to comparison`}>+ Compare</button>
       </div>
     </article>
   );
@@ -65,8 +65,8 @@ export function PakistanMarket({ onOpenDevice, onCompareDevice }: Props) {
   return (
     <section className="pk-market-section" id="market" aria-labelledby="pk-market-title">
       <div className="pk-market-heading">
-        <div><p className="eyebrow">Pakistan · PKR market evidence</p><h2 id="pk-market-title">Find phones with supported local prices.</h2>
-          <p>Search published devices matched to the same RAM/storage variant, with dated price sources and evidence status.</p>
+        <div><p className="eyebrow">Discover / Pakistan market</p><h2 id="pk-market-title">Understand the price before you buy.</h2>
+          <p>Explore Pakistani asking-price observations by model, budget, PTA status and condition. Each result shows its source and observation date.</p>
         </div>
       </div>
       <form className="pk-market-filter" onSubmit={search}>
@@ -81,10 +81,10 @@ export function PakistanMarket({ onOpenDevice, onCompareDevice }: Props) {
         <div className="pk-market-filter-actions"><button type="submit">Search market</button><button type="button" className="pk-market-clear" onClick={clear}>Clear filters</button></div>
       </form>
       {query.isLoading && <p className="state-message" role="status">Loading price-backed Pakistani phones…</p>}
-      {query.isError && <p className="state-message error" role="alert">{query.error instanceof Error ? query.error.message : "Could not load the Pakistani market search."}</p>}
+      {query.isError && <div className="state-message error" role="alert"><p>We couldn't load price observations right now.</p><button className="retry-button" type="button" onClick={() => void query.refetch()}>Try again</button></div>}
       {query.data && <>
         <div className="pk-market-summary"><span>{query.data.count} price-backed phones found</span><span>Page {query.data.page}</span></div>
-        {query.data.results.length === 0 && <div className="empty-state"><strong>{query.data.catalog_status === "empty" ? "The phone catalog is empty" : "No eligible local price evidence"}</strong><p>{query.data.catalog_status === "empty" ? "Phones and Pakistani prices need to be imported before this search can return results." : query.data.catalog_status === "missing_prices" ? "Catalog phones need fresh, reviewed Pakistani price observations before they can appear here." : "Try another condition, city, budget, or PTA requirement. These filters do not match the available evidence."}</p>{query.data.catalog_status === "ready" && <button type="button" onClick={clear}>Reset search</button>}</div>}
+        {query.data.results.length === 0 && <div className="empty-state"><strong>{query.data.catalog_status === "empty" ? "The phone catalog is empty" : "No eligible local price evidence"}</strong><p>{query.data.catalog_status === "empty" ? "Phones and Pakistani prices need to be imported before this search can return results." : query.data.catalog_status === "missing_prices" ? "Catalog phones need eligible Pakistani price observations before they can appear here." : "Try another condition, city, budget, or PTA requirement. These filters do not match the available evidence."}</p>{query.data.catalog_status === "ready" && <button type="button" onClick={clear}>Reset search</button>}</div>}
         <div className="pk-market-grid">{query.data.results.map((result) => <MarketCard key={`${result.slug}-${result.variant.id}`} result={result} onOpenDevice={onOpenDevice} onCompareDevice={onCompareDevice} />)}</div>
         <p className="pk-market-disclaimer">{query.data.price_disclaimer || "Observed asking prices are not live offers, and handset/PTA status requires independent verification."}</p>
         {(page > 1 || query.data.has_more) && <div className="pk-pagination"><button type="button" disabled={page <= 1 || query.isFetching} onClick={() => setPage((current) => Math.max(1, current - 1))}>← Previous</button><span>Page {page}</span><button type="button" disabled={!query.data.has_more || query.isFetching} onClick={() => setPage((current) => current + 1)}>Next →</button></div>}

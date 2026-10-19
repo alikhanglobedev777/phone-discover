@@ -34,14 +34,14 @@ export function PhoneCard({ device, selected, onSelect, onOpen }: Props) {
         </div>
         <div className="card-footer">
           <div className="price-block">
-            <span>{device.lowest_price?.evidence_type ? "Observed from" : "From"}</span>
+            <span>{device.lowest_price?.evidence_type ? "Observed asking price" : "Reference catalog offer"}</span>
             <strong>
               {device.lowest_price
                 ? `${device.lowest_price.currency} ${device.lowest_price.price}`
                 : "Price unavailable"}
             </strong>
           </div>
-          <button className="text-button" type="button" onClick={onOpen}>View details →</button>
+          <button className="text-button" type="button" onClick={onOpen} aria-label={`View details for ${device.name}`}>View details →</button>
         </div>
         <label className={`compare-check ${selected ? "compare-check-selected" : ""}`}>
           <input type="checkbox" checked={selected} onChange={onSelect} />

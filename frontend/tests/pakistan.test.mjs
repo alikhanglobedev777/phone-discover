@@ -1,8 +1,26 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  activeFilterSummary, conversationPayload, formatPkr, formatPriceRange, marketQuery, safeSourceUrl,
+  activeFilterSummary, conversationPayload, formatPkr, formatPriceRange, marketQuery, safeSourceUrl, searchProviderLabel,
 } from "../src/lib/pakistan.ts";
+
+test("legacy status responses cannot crash provider rendering after loading", async () => {
+  const { catalogStatus } = await import("../src/lib/pakistan.ts");
+  const oldFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({
+    catalog_status: "ready", research_available: true, automatic_research: true,
+  }) });
+  try {
+    const status = await catalogStatus();
+    assert.equal(status.automatic_research, true);
+    assert.equal(searchProviderLabel(status.search_provider), "configured web sources");
+    for (const missing of [undefined, null, "", 42, {}]) {
+      assert.equal(searchProviderLabel(missing), "configured web sources");
+    }
+    assert.equal(searchProviderLabel("source_pages"), "source pages");
+    assert.equal(searchProviderLabel("tavily"), "tavily");
+  } finally { globalThis.fetch = oldFetch; }
+});
 
 test("PKR only, without inventing a foreign exchange rate", () => {
   assert.equal(formatPkr("80000.00"), "PKR 80,000");

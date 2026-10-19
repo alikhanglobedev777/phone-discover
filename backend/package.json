@@ -1,0 +1,11 @@
+{
+  "name": "phone-discover-backend",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Convenience commands for the Django development server",
+  "scripts": {
+    "dev": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File ../scripts/npm-backend.ps1",
+    "start": "npm run dev",
+    "dev:no-docker": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File ../scripts/npm-backend.ps1 -SkipInfrastructure"
+  }
+}

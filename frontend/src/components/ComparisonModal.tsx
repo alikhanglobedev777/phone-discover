@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { canCompareStartingPrices } from "../lib/comparison";
+import { useModalKeyboard } from "../lib/useModalKeyboard";
 import type { CSSProperties, ReactNode } from "react";
 import type { Device, Variant } from "../types";
 
@@ -58,22 +60,12 @@ function ComparisonRow({
 }
 
 export function ComparisonModal({ devices, loading, onClose, onRemove, onOpenDevice }: Props) {
-  const [copied, setCopied] = useState(false);
+  const [shareStatus, setShareStatus] = useState("");
+  const canComparePrices = canCompareStartingPrices(devices);
+  const dialogRef = useModalKeyboard<HTMLElement>(onClose);
   const gridStyle = {
     gridTemplateColumns: `150px repeat(${Math.max(devices.length, 2)}, minmax(190px, 1fr))`,
   };
-
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", handleKeyDown);
-    document.body.classList.add("modal-open");
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      document.body.classList.remove("modal-open");
-    };
-  }, [onClose]);
 
   const specificationRows = useMemo(() => {
     const labels = new Map<string, { section: string; sectionSlug: string; label: string }>();
@@ -100,15 +92,18 @@ export function ComparisonModal({ devices, loading, onClose, onRemove, onOpenDev
   }, [devices]);
 
   async function copyShareLink() {
-    await navigator.clipboard.writeText(window.location.href);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1800);
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setShareStatus("Link copied");
+    } catch {
+      setShareStatus("Copy unavailable. Copy the link from your browser address bar.");
+    }
   }
 
   if (loading && devices.length < 2) {
     return (
       <div className="comparison-backdrop" role="presentation" onClick={onClose}>
-        <section className="comparison-modal comparison-modal-loading" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+        <section ref={dialogRef} tabIndex={-1} className="comparison-modal comparison-modal-loading" role="dialog" aria-modal="true" aria-label="Comparison loading" onClick={(event) => event.stopPropagation()}>
           <p>Loading comparison…</p>
         </section>
       </div>
@@ -118,7 +113,7 @@ export function ComparisonModal({ devices, loading, onClose, onRemove, onOpenDev
   if (devices.length < 2) {
     return (
       <div className="comparison-backdrop" role="presentation" onClick={onClose}>
-        <section className="comparison-modal comparison-modal-loading" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+        <section ref={dialogRef} tabIndex={-1} className="comparison-modal comparison-modal-loading" role="dialog" aria-modal="true" aria-label="Comparison unavailable" onClick={(event) => event.stopPropagation()}>
           <div className="comparison-unavailable">
             <strong>Comparison unavailable</strong>
             <p>One or more selected phones could not be loaded. Clear the shortlist and try again.</p>
@@ -131,15 +126,15 @@ export function ComparisonModal({ devices, loading, onClose, onRemove, onOpenDev
 
   return (
     <div className="comparison-backdrop" role="presentation" onClick={onClose}>
-      <section className="comparison-modal" role="dialog" aria-modal="true" aria-labelledby="comparison-title" onClick={(event) => event.stopPropagation()}>
+      <section ref={dialogRef} tabIndex={-1} className="comparison-modal" role="dialog" aria-modal="true" aria-labelledby="comparison-title" onClick={(event) => event.stopPropagation()}>
         <header className="comparison-modal-header">
           <div>
             <p className="eyebrow">Side-by-side decision</p>
             <h2 id="comparison-title">Compare your shortlist</h2>
-            <p>Best values are highlighted automatically from the available catalog data.</p>
+            <p>Comparable specifications are highlighted from catalog data. Prices in different currencies are never ranked against each other.</p>{shareStatus && <p role="status" className="share-status">{shareStatus}</p>}
           </div>
           <div className="comparison-header-actions">
-            <button type="button" onClick={copyShareLink}>{copied ? "Link copied" : "Share comparison"}</button>
+            <button type="button" onClick={copyShareLink}>Copy share link</button>
             <button className="comparison-modal-close" type="button" onClick={onClose} aria-label="Close comparison">×</button>
           </div>
         </header>
@@ -161,10 +156,11 @@ export function ComparisonModal({ devices, loading, onClose, onRemove, onOpenDev
           </div>
 
           <div className="comparison-group-title">Price and availability</div>
-          <ComparisonRow label="Starting price" best="min" style={gridStyle} cells={devices.map((device) => ({
+          <ComparisonRow label="Starting price" best={canComparePrices ? "min" : undefined} style={gridStyle} cells={devices.map((device) => ({
             content: device.lowest_price ? `${device.lowest_price.currency} ${device.lowest_price.price}` : "Unavailable",
-            numeric: numericPrice(device),
+            numeric: canComparePrices ? numericPrice(device) : null,
           }))} />
+          {!canComparePrices && <div className="comparison-currency-note" role="note">Price highlights are disabled because offers are missing or use different currencies.</div>}
           <ComparisonRow label="Status" style={gridStyle} cells={devices.map((device) => ({ content: device.status }))} />
           <ComparisonRow label="Released" style={gridStyle} cells={devices.map((device) => ({ content: device.release_date ?? "—" }))} />
           <ComparisonRow label="Operating system" style={gridStyle} cells={devices.map((device) => ({ content: device.operating_system }))} />

@@ -1,0 +1,186 @@
+/* Device detail dialog: responsive, contained product media and readable specs.
+   Loaded after the main design styles so it can correct the legacy modal rules. */
+.detail-backdrop {
+  z-index: 120; /* above the floating chat launcher/drawer */
+  overflow: hidden;
+  padding: 16px;
+}
+
+.detail-panel {
+  width: min(980px, 100%);
+  max-height: calc(100dvh - 32px);
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 0 30px 32px;
+  border: 1px solid var(--wine-stroke, #ecd5dd);
+  border-radius: 22px;
+  background: #fff;
+}
+
+.detail-modal-toolbar {
+  position: sticky;
+  z-index: 5;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 64px;
+  margin: 0 -30px 22px;
+  padding: 10px 30px;
+  border-bottom: 1px solid var(--wine-stroke, #ecd5dd);
+  background: rgba(255, 255, 255, .97);
+  backdrop-filter: blur(12px);
+}
+
+.detail-modal-kicker {
+  color: var(--wine, #76253f);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.detail-panel .close-button {
+  position: static;
+  float: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  width: auto;
+  min-width: 88px;
+  height: 38px;
+  margin: 0;
+  padding: 0 12px;
+  border: 1px solid var(--wine-stroke, #ecd5dd);
+  border-radius: 999px;
+  background: #fff;
+  color: #111;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1;
+  transition: background .2s ease, border-color .2s ease;
+}
+
+.detail-panel .close-button span { font-size: 19px; line-height: 1; }
+.detail-panel .close-button:hover { border-color: var(--wine, #76253f); background: #fcf4f6; }
+.detail-panel .close-button:focus-visible { outline: 3px solid var(--wine, #76253f); outline-offset: 3px; }
+
+.detail-hero {
+  clear: none;
+  display: grid;
+  grid-template-columns: minmax(0, .88fr) minmax(0, 1.12fr);
+  gap: clamp(18px, 3vw, 32px);
+  align-items: center;
+}
+
+.detail-gallery, .detail-intro { min-width: 0; }
+
+.detail-image-stage {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  place-items: center;
+  height: clamp(230px, 40dvh, 330px);
+  min-height: 0;
+  overflow: hidden;
+  isolation: isolate;
+  padding: 17px;
+  border: 1px solid var(--wine-stroke, #ecd5dd);
+  border-radius: 16px;
+  background: #fcf7f9;
+}
+
+.detail-image-stage img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  object-position: center;
+  mix-blend-mode: multiply;
+}
+
+.detail-thumbnails { min-width: 0; overscroll-behavior-x: contain; }
+.detail-thumbnails img { display: block; min-height: 0; }
+.detail-badges { margin-bottom: 12px; }
+.detail-intro h2 {
+  margin: 7px 0 14px;
+  font-size: clamp(32px, 4vw, 47px);
+  line-height: 1.07;
+  overflow-wrap: anywhere;
+}
+.detail-summary { margin: 10px 0; font-size: 13px; line-height: 1.65; }
+.detail-facts { margin: 15px 0; }
+.detail-facts div { gap: 12px; }
+.detail-facts dt { flex: 0 0 40%; }
+.detail-facts dd { min-width: 0; overflow-wrap: anywhere; }
+.detail-intro .pk-evidence-note { font-size: 12px; line-height: 1.55; }
+
+.detail-panel :is(.variant-section, .structured-specs, .offers-section) {
+  margin-top: 26px;
+  padding-top: 24px;
+}
+.detail-panel .detail-section-heading { margin-bottom: 17px; }
+.detail-panel .detail-section-heading h3 { font-size: clamp(20px, 2.6vw, 25px); }
+.detail-panel .spec-grid { margin: 17px 0; }
+.detail-panel .spec-grid strong,
+.detail-panel .spec-section dd,
+.detail-panel .offer-row { overflow-wrap: anywhere; }
+.detail-panel .offer-row { min-width: 0; }
+.detail-panel .offer-row b { white-space: normal; text-align: right; }
+
+/* Tablet and small laptop: stack the media above details without side overflow. */
+@media (max-width: 800px) {
+  .detail-hero { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .detail-image-stage { height: clamp(205px, 35dvh, 290px); }
+  .detail-intro { align-self: start; }
+}
+
+/* Mobile: full-screen dialog, readable content, and an always reachable close control. */
+@media (max-width: 600px) {
+  .detail-backdrop { padding: 0; }
+  .detail-panel {
+    width: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    padding: 0 16px max(26px, env(safe-area-inset-bottom));
+    border: 0;
+    border-radius: 0;
+    scrollbar-gutter: auto;
+  }
+  .detail-modal-toolbar {
+    min-height: 60px;
+    margin: 0 -16px 14px;
+    padding: 9px 16px;
+  }
+  .detail-image-stage { height: clamp(185px, 31dvh, 250px); padding: 12px; }
+  .detail-badges { margin-bottom: 10px; }
+  .detail-intro h2 { font-size: clamp(29px, 8vw, 40px); }
+  .detail-summary { font-size: 13px; }
+  .detail-facts dt { flex: 0 0 42%; }
+  .detail-facts dd { flex: 1 1 auto; }
+  .detail-panel .detail-section-heading { gap: 10px; }
+  .detail-panel .detail-section-heading select { width: min(100%, 280px); max-width: 100%; }
+  .detail-panel :is(.variant-section, .structured-specs, .offers-section) { margin-top: 22px; padding-top: 20px; }
+  .detail-panel .spec-section dl > div { grid-template-columns: minmax(95px, .42fr) minmax(0, 1fr); gap: 12px; }
+  .detail-panel .offer-row { flex-wrap: wrap; }
+}
+
+@media (max-width: 360px) {
+  .detail-panel { padding-right: 12px; padding-left: 12px; }
+  .detail-modal-toolbar { margin-right: -12px; margin-left: -12px; padding-right: 12px; padding-left: 12px; }
+  .detail-panel .spec-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .detail-panel .close-button { transition: none; }
+}

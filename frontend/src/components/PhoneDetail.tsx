@@ -1,62 +1,114 @@
 import { useEffect, useMemo, useState } from "react";
+import { galleryPhotos, photosForColor, viewLabel } from "../lib/deviceGallery";
+import { useModalKeyboard } from "../lib/useModalKeyboard";
 import type { Device } from "../types";
 
 type Props = { device: Device; onClose: () => void };
 
 export function PhoneDetail({ device, onClose }: Props) {
+  const dialogRef = useModalKeyboard<HTMLElement>(onClose);
   const [variantId, setVariantId] = useState<number | null>(device.variants?.[0]?.id ?? null);
-  const [activeImage, setActiveImage] = useState(device.primary_image_url || device.images?.[0]?.image_url || "");
+  const [colorId, setColorId] = useState<number | null>(null);
+  const [activePhotoKey, setActivePhotoKey] = useState("");
+  const [failedURLs, setFailedURLs] = useState<string[]>([]);
   const variant = useMemo(
     () => device.variants?.find((item) => item.id === variantId) ?? device.variants?.[0],
     [device.variants, variantId],
   );
+  const allPhotos = useMemo(() => galleryPhotos(device), [device]);
+  const photoSelection = useMemo(() => photosForColor(allPhotos, colorId), [allPhotos, colorId]);
+  const visiblePhotos = useMemo(
+    () => photoSelection.photos.filter((photo) => !failedURLs.includes(photo.url)),
+    [photoSelection, failedURLs],
+  );
+  const activePhoto = visiblePhotos.find((photo) => photo.key === activePhotoKey) ?? visiblePhotos[0];
+  const activeIndex = visiblePhotos.findIndex((photo) => photo.key === activePhoto?.key);
+  const selectedColor = device.colors?.find((color) => color.id === colorId);
 
   useEffect(() => {
     setVariantId(device.variants?.[0]?.id ?? null);
-    setActiveImage(device.primary_image_url || device.images?.[0]?.image_url || "");
-  }, [device]);
+    setColorId(null);
+    setActivePhotoKey("");
+    setFailedURLs([]);
+  }, [device.id]);
 
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", handleKeyDown);
-    document.body.classList.add("modal-open");
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      document.body.classList.remove("modal-open");
-    };
-  }, [onClose]);
-
-  const imageAlt = device.images?.find((image) => image.image_url === activeImage)?.alt_text;
+  const navigatePhoto = (step: number) => {
+    if (visiblePhotos.length < 2) return;
+    const next = (activeIndex + step + visiblePhotos.length) % visiblePhotos.length;
+    setActivePhotoKey(visiblePhotos[next].key);
+  };
 
   return (
     <div className="detail-backdrop" role="presentation" onClick={onClose}>
-      <section className="detail-panel" role="dialog" aria-modal="true" aria-labelledby="phone-detail-title" onClick={(event) => event.stopPropagation()}>
-        <button className="close-button" onClick={onClose} aria-label="Close details">×</button>
+      <section ref={dialogRef} tabIndex={-1} className="detail-panel" role="dialog" aria-modal="true" aria-labelledby="phone-detail-title" onClick={(event) => event.stopPropagation()}>
+        <div className="detail-modal-toolbar">
+          <span className="detail-modal-kicker">Phone details</span>
+          <button type="button" className="close-button" onClick={onClose} aria-label="Close details">
+            Close <span aria-hidden="true">×</span>
+          </button>
+        </div>
         <div className="detail-hero">
-          <div className="detail-gallery">
+          <div className="detail-gallery" role="group" aria-label={`${device.brand.name} ${device.name} photo gallery`}>
             <div className="detail-image-stage">
-              {activeImage ? (
-                <img src={activeImage} alt={imageAlt || `${device.brand.name} ${device.name}`} />
+              {activePhoto ? (
+                <img
+                  key={activePhoto.url}
+                  src={activePhoto.url}
+                  alt={activePhoto.alt}
+                  onError={() => setFailedURLs((urls) => urls.includes(activePhoto.url) ? urls : [...urls, activePhoto.url])}
+                />
               ) : (
-                <span aria-hidden="true">{device.brand.name.slice(0, 1)}</span>
+                <div className="detail-gallery-empty" role="status">
+                  <span aria-hidden="true">▣</span>
+                  <p>{selectedColor ? `No photos available for ${selectedColor.name}` : "Product photos are not available"}</p>
+                </div>
+              )}
+              {activePhoto && <span className="detail-view-badge">{viewLabel(activePhoto.view)}{activePhoto.color ? ` · ${device.colors?.find((color) => color.id === activePhoto.color)?.name ?? ""}` : ""}</span>}
+              {visiblePhotos.length > 1 && (
+                <div className="detail-gallery-navigation">
+                  <button type="button" onClick={() => navigatePhoto(-1)} aria-label="Previous phone photo">‹</button>
+                  <span aria-live="polite">{activeIndex + 1} / {visiblePhotos.length}</span>
+                  <button type="button" onClick={() => navigatePhoto(1)} aria-label="Next phone photo">›</button>
+                </div>
               )}
             </div>
-            {(device.images?.length ?? 0) > 1 && (
-              <div className="detail-thumbnails" aria-label="Phone images">
-                {device.images?.map((image) => (
+            {visiblePhotos.length > 1 && (
+              <div className="detail-thumbnails" aria-label="Available phone views">
+                {visiblePhotos.map((photo, index) => (
                   <button
                     type="button"
-                    className={activeImage === image.image_url ? "active" : ""}
-                    onClick={() => setActiveImage(image.image_url)}
-                    key={image.id}
+                    className={activePhoto?.key === photo.key ? "active" : ""}
+                    onClick={() => setActivePhotoKey(photo.key)}
+                    aria-label={`Show ${viewLabel(photo.view).toLowerCase()} photo ${index + 1}`}
+                    aria-pressed={activePhoto?.key === photo.key}
+                    key={photo.key}
                   >
-                    <img src={image.image_url} alt={image.alt_text || "Phone view"} />
+                    <img src={photo.url} alt="" loading="lazy" onError={() => setFailedURLs((urls) => urls.includes(photo.url) ? urls : [...urls, photo.url])} />
+                    <span>{viewLabel(photo.view)}</span>
                   </button>
                 ))}
               </div>
             )}
+            {!!device.colors?.length && (
+              <div className="detail-finish-picker">
+                <div className="detail-finish-heading"><strong>Colors &amp; finishes</strong><span>{selectedColor?.name ?? "All photos"}</span></div>
+                <div className="detail-finish-options" aria-label="Choose a phone finish">
+                  <button type="button" className={colorId === null ? "selected" : ""} aria-pressed={colorId === null} onClick={() => { setColorId(null); setActivePhotoKey(""); }}>
+                    <span className="detail-all-finishes" aria-hidden="true">◈</span> All
+                  </button>
+                  {device.colors.map((color) => (
+                    <button type="button" key={color.id} className={colorId === color.id ? "selected" : ""} aria-pressed={colorId === color.id} onClick={() => { setColorId(color.id); setActivePhotoKey(""); }}>
+                      <span className={`detail-color-chip${color.hex_code ? "" : " uncolored"}`} style={color.hex_code ? { backgroundColor: color.hex_code } : undefined} aria-hidden="true" />
+                      {color.name}
+                    </button>
+                  ))}
+                </div>
+                {photoSelection.isRepresentative && (
+                  <p className="detail-image-note">{visiblePhotos.length ? "Generic product photos shown; this finish may look different." : "No photograph of this finish is available yet."}</p>
+                )}
+              </div>
+            )}
+            {!device.colors?.length && <p className="detail-image-note">More angles and colors will appear when product photography is available.</p>}
           </div>
           <div className="detail-intro">
             <div className="detail-badges">
