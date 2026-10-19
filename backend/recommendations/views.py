@@ -184,16 +184,16 @@ class PakistanConversationView(APIView):
                                 "I found phones online and saved the sourced details to the catalog. See the web-researched cards; city/PTA claims remain source-reported or unknown."
                             )
         # General guidance is a separate opt-in AI capability, not price evidence.
-        guidance = {"status": "not_requested", "text": "", "notice": "Gemini general guidance was not requested."}
+        guidance = {"status": "not_requested", "text": "", "notice": "AI general guidance was not requested."}
         if validated["guidance"]:
             if summary["results"]:
                 guidance = {"status": "not_needed", "text": "", "notice": "Use the eligible local shortlist above."}
             elif research["status"] == "grounded_preview":
                 guidance = {"status": "not_needed", "text": "", "notice": "Grounded research was provided separately."}
             elif not guidance_configured():
-                guidance = {"status": "disabled", "text": "", "notice": "Gemini general guidance is not configured."}
+                guidance = {"status": "disabled", "text": "", "notice": "AI general guidance is not configured."}
             elif not GeminiGuidanceThrottle().allow_request(request, self):
-                guidance = {"status": "rate_limited", "text": "", "notice": "Gemini guidance limit reached. Local search is still available."}
+                guidance = {"status": "rate_limited", "text": "", "notice": "AI guidance limit reached. Local search is still available."}
             else:
                 guidance = generate_general_guidance(criteria)
         results = summary["results"]
