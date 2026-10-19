@@ -1,3 +1,5 @@
+import { apiUrl } from "./apiUrl.ts";
+
 /** Pakistan-only, read-only public API clients. All prices are observed PKR ranges. */
 export type MarketPrice = {
   currency: "PKR";
@@ -211,7 +213,7 @@ function csrfHeaders(): Record<string, string> {
 async function jsonApi<T>(path: string, options: RequestInit = {}): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(path, { ...options, headers: { ...csrfHeaders(), ...options.headers }, credentials: "same-origin", cache: "no-store" });
+    response = await fetch(apiUrl(path), { ...options, headers: { ...csrfHeaders(), ...options.headers }, credentials: "same-origin", cache: "no-store" });
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") throw error;
     throw new Error("Cannot reach Phone Discover. Check that the Django backend is running.");
@@ -266,7 +268,7 @@ export function converse(request: ConversationRequest, signal?: AbortSignal): Pr
 
 export async function forgetConversation(sessionId: string): Promise<void> {
   // Do not expose the opaque bearer UUID in a query string or browser storage.
-  const response = await fetch(`/api/recommendations/conversation/${encodeURIComponent(sessionId)}/`, {
+  const response = await fetch(apiUrl(`/api/recommendations/conversation/${encodeURIComponent(sessionId)}/`), {
     method: "DELETE", headers: csrfHeaders(), credentials: "same-origin", cache: "no-store",
   });
   if (!response.ok) throw new Error("The saved conversation could not be cleared on the server.");

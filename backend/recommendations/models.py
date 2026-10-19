@@ -9,6 +9,7 @@ class RecommendationQuery(models.Model):
         DETERMINISTIC = "deterministic", "Deterministic"
         GEMINI = "gemini", "Gemini"
         OPENAI = "openai", "OpenAI"
+        GROQ = "groq", "Groq"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     session_id = models.UUIDField(default=uuid.uuid4, db_index=True)
