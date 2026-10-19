@@ -7,6 +7,7 @@ import "./design-system.css";
 import "./brand-refresh.css";
 import "./detail-modal.css";
 import "./device-gallery.css";
+import "./compare-page.css";
 
 const queryClient = new QueryClient();
 
