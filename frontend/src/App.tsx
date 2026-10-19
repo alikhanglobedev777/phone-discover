@@ -9,6 +9,7 @@ import { PakistanMarket } from "./components/PakistanMarket";
 import { PhoneDetail } from "./components/PhoneDetail";
 import { AssistantDrawer } from "./components/AssistantDrawer";
 import type { Device, DeviceFilters } from "./types";
+import type { MarketSearchFilters } from "./lib/pakistan";
 
 const EMPTY_FILTERS: DeviceFilters = {
   search: "",
@@ -49,6 +50,7 @@ export default function App() {
   const [activeSlug, setActiveSlug] = useState<string | null>(() => new URLSearchParams(window.location.search).get("device"));
   const [compareSlugs, setCompareSlugs] = useState<string[]>(initialComparisonSlugs);
   const [comparisonNotice, setComparisonNotice] = useState("");
+  const [marketResearchRequest, setMarketResearchRequest] = useState<{ id: number; filters: MarketSearchFilters } | null>(null);
   const [showComparison, setShowComparison] = useState(
     () => (new URLSearchParams(window.location.search).get("compare")?.split(",").filter(Boolean).length ?? 0) >= 2,
   );
@@ -209,9 +211,11 @@ export default function App() {
         <div><span className="value-index">02</span><strong>Price context, not hype</strong><p>See observed PKR asking prices with source and date context.</p></div>
         <div><span className="value-index">03</span><strong>Compare the trade-offs</strong><p>Shortlist up to three phones and review them side by side.</p></div>
       </section>
-      <PakistanMarket onOpenDevice={setActiveSlug} onCompareDevice={addComparison} />
+      <PakistanMarket onOpenDevice={setActiveSlug} onCompareDevice={addComparison}
+        onResearchWeb={(marketFilters) => setMarketResearchRequest((previous) => ({ id: (previous?.id ?? 0) + 1, filters: marketFilters }))} />
       <footer className="site-footer"><div><a className="footer-brand" href="#top">phone<span>discover</span>.</a><p>Know your options. Choose on your terms.</p></div><div className="footer-links"><a href="#catalog">Explore phones</a><a href="#market">Pakistan prices</a><a href="#catalog">Phone catalog</a><a href="/admin/">Admin</a></div><p className="footer-note">PKR market prices are observed asking prices, not guaranteed offers. Reference catalog offers may use other currencies. Verify condition, PTA status and sellers independently.</p></footer>
       <AssistantDrawer
+        marketResearchRequest={marketResearchRequest}
         onOpenDevice={(slug) => setActiveSlug(slug)}
         onCompareDevice={addComparison}
       />

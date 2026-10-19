@@ -1,7 +1,8 @@
+import "../market-research.css";
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { formatPriceRange, marketQuery, safeSourceUrl, searchPakistaniMarket } from "../lib/pakistan";
+import { catalogStatus, formatPriceRange, marketQuery, safeSourceUrl, searchPakistaniMarket } from "../lib/pakistan";
 import type { MarketSearchFilters, MarketSearchResult } from "../lib/pakistan";
 
 const DEFAULTS: MarketSearchFilters = {
@@ -9,9 +10,9 @@ const DEFAULTS: MarketSearchFilters = {
   budget_pkr: "", ram_min: "", sort: "price",
 };
 
-type Props = { onOpenDevice: (slug: string) => void; onCompareDevice: (slug: string) => void };
+type Props = { onOpenDevice: (slug: string) => void; onCompareDevice: (slug: string) => void; onResearchWeb: (filters: MarketSearchFilters) => void };
 
-function MarketCard({ result, onOpenDevice, onCompareDevice }: Props & { result: MarketSearchResult }) {
+function MarketCard({ result, onOpenDevice, onCompareDevice }: Pick<Props, "onOpenDevice" | "onCompareDevice"> & { result: MarketSearchResult }) {
   const price = result.price_observation;
   const source = safeSourceUrl(price.source_url);
   return (
@@ -39,7 +40,7 @@ function MarketCard({ result, onOpenDevice, onCompareDevice }: Props & { result:
   );
 }
 
-export function PakistanMarket({ onOpenDevice, onCompareDevice }: Props) {
+export function PakistanMarket({ onOpenDevice, onCompareDevice, onResearchWeb }: Props) {
   const [draft, setDraft] = useState<MarketSearchFilters>(DEFAULTS);
   const [filters, setFilters] = useState<MarketSearchFilters>(DEFAULTS);
   const [page, setPage] = useState(1);
@@ -48,6 +49,12 @@ export function PakistanMarket({ onOpenDevice, onCompareDevice }: Props) {
     queryKey: ["pakistan-market", queryString],
     queryFn: () => searchPakistaniMarket(filters, page),
     staleTime: 30_000,
+  });
+
+  const emptyResults = Boolean(query.data && query.data.results.length === 0);
+  const researchStatus = useQuery({
+    queryKey: ["catalog-status"], queryFn: catalogStatus, enabled: emptyResults,
+    staleTime: 30_000, retry: false,
   });
 
   function update(key: keyof MarketSearchFilters, value: string) {
@@ -84,7 +91,24 @@ export function PakistanMarket({ onOpenDevice, onCompareDevice }: Props) {
       {query.isError && <div className="state-message error" role="alert"><p>We couldn't load price observations right now.</p><button className="retry-button" type="button" onClick={() => void query.refetch()}>Try again</button></div>}
       {query.data && <>
         <div className="pk-market-summary"><span>{query.data.count} price-backed phones found</span><span>Page {query.data.page}</span></div>
-        {query.data.results.length === 0 && <div className="empty-state"><strong>{query.data.catalog_status === "empty" ? "The phone catalog is empty" : "No eligible local price evidence"}</strong><p>{query.data.catalog_status === "empty" ? "Phones and Pakistani prices need to be imported before this search can return results." : query.data.catalog_status === "missing_prices" ? "Catalog phones need eligible Pakistani price observations before they can appear here." : "Try another condition, city, budget, or PTA requirement. These filters do not match the available evidence."}</p>{query.data.catalog_status === "ready" && <button type="button" onClick={clear}>Reset search</button>}</div>}
+        {query.data.results.length === 0 && (
+          <div className="empty-state pk-market-no-results">
+            <span className="pk-market-no-results-icon" aria-hidden="true">✦</span>
+            <strong>No matching local price evidence</strong>
+            <p>We couldn't find a published price matching these filters. This doesn't necessarily mean the phone is unavailable. Try different filters or use AI web research to check source-linked listings.</p>
+            {researchStatus.data?.research_available ? (
+              <div className="pk-market-research-action">
+                <button type="button" onClick={() => onResearchWeb({ ...filters })}>Search the web with AI ↗</button>
+                <span>Opens Phone Discover Intelligence with your filters ready to review. Web results may be unverified; eligible sourced records can be saved for future searches.</span>
+              </div>
+            ) : (
+              <p className="pk-market-research-unavailable" role="status">
+                {researchStatus.isPending ? "Checking AI web research availability…" : "AI web research is unavailable right now. Try another search or check again later."}
+              </p>
+            )}
+            <button type="button" className="pk-market-reset-link" onClick={clear}>Reset search filters</button>
+          </div>
+        )}
         <div className="pk-market-grid">{query.data.results.map((result) => <MarketCard key={`${result.slug}-${result.variant.id}`} result={result} onOpenDevice={onOpenDevice} onCompareDevice={onCompareDevice} />)}</div>
         <p className="pk-market-disclaimer">{query.data.price_disclaimer || "Observed asking prices are not live offers, and handset/PTA status requires independent verification."}</p>
         {(page > 1 || query.data.has_more) && <div className="pk-pagination"><button type="button" disabled={page <= 1 || query.isFetching} onClick={() => setPage((current) => Math.max(1, current - 1))}>← Previous</button><span>Page {page}</span><button type="button" disabled={!query.data.has_more || query.isFetching} onClick={() => setPage((current) => current + 1)}>Next →</button></div>}
