@@ -9,7 +9,7 @@ from .provider_config import ai_selection, global_provider, key_for, model_for
 
 logger = logging.getLogger(__name__)
 
-SUPPORTED_PROVIDERS = {"auto", "deterministic", "gemini", "openai"}
+SUPPORTED_PROVIDERS = {"auto", "deterministic", "gemini", "openai", "groq"}
 SYSTEM_INSTRUCTIONS = (
     "You are a concise phone buying assistant. Use only the supplied candidate facts. "
     "Never invent specifications, prices, sellers, availability, or benchmarks. "
@@ -33,52 +33,27 @@ def get_provider_status() -> dict:
             "label": f"Deterministic fallback (unknown provider: {requested})",
         }
 
-    gemini_key = key_for("gemini")
-    openai_key = key_for("openai")
-
     if requested == "auto":
-        if gemini_key:
-            active = "gemini"
-        elif openai_key:
-            active = "openai"
-        else:
-            active = "deterministic"
+        active = ai_selection()
     else:
         active = requested
 
-    if active == "gemini" and not gemini_key:
-        return {
-            "requested": requested,
-            "active": "deterministic",
-            "configured": False,
-            "model": "built-in ranking engine",
-            "label": "Deterministic fallback (Gemini key is missing)",
-        }
-    if active == "openai" and not openai_key:
-        return {
-            "requested": requested,
-            "active": "deterministic",
-            "configured": False,
-            "model": "built-in ranking engine",
-            "label": "Deterministic fallback (OpenAI key is missing)",
-        }
-    if active == "gemini":
-        model = model_for("gemini")
+    if active in ("gemini", "openai", "groq"):
+        if not key_for(active):
+            return {
+                "requested": requested,
+                "active": "deterministic",
+                "configured": False,
+                "model": "built-in ranking engine",
+                "label": f"Deterministic fallback ({active.title()} key is missing)",
+            }
+        model = model_for(active)
         return {
             "requested": requested,
             "active": active,
             "configured": True,
             "model": model,
-            "label": f"Gemini ({model})",
-        }
-    if active == "openai":
-        model = model_for("openai")
-        return {
-            "requested": requested,
-            "active": active,
-            "configured": True,
-            "model": model,
-            "label": f"OpenAI ({model})",
+            "label": f"{active.title()} ({model})",
         }
     return {
         "requested": requested,
@@ -111,6 +86,15 @@ def _gemini_client() -> OpenAI:
             "GEMINI_OPENAI_BASE_URL",
             "https://generativelanguage.googleapis.com/v1beta/openai/",
         ),
+        **_client_options(),
+    )
+
+
+def _groq_client() -> OpenAI:
+    # Fixed official endpoint; never accept a user-supplied arbitrary base URL.
+    return OpenAI(
+        api_key=key_for("groq"),
+        base_url="https://api.groq.com/openai/v1",
         **_client_options(),
     )
 
@@ -178,6 +162,20 @@ def _explain_with_gemini(message: str, criteria: dict, results: list[dict]) -> s
     return _message_content(response)
 
 
+def _explain_with_groq(message: str, criteria: dict, results: list[dict]) -> str:
+    response = _groq_client().chat.completions.create(
+        model=model_for("groq"),
+        messages=[
+            {"role": "system", "content": SYSTEM_INSTRUCTIONS},
+            {"role": "user", "content": _request_payload(message, criteria, results)},
+        ],
+        max_tokens=max(800, int(getattr(settings, "AI_MAX_OUTPUT_TOKENS", 320))),
+    )
+    if not response.choices or response.choices[0].finish_reason != "stop":
+        return ""
+    return _message_content(response)
+
+
 def explain_recommendation(
     message: str,
     criteria: dict,
@@ -193,6 +191,8 @@ def explain_recommendation(
     try:
         if provider == "gemini":
             explanation = _explain_with_gemini(message, criteria, results)
+        elif provider == "groq":
+            explanation = _explain_with_groq(message, criteria, results)
         else:
             explanation = _explain_with_openai(
                 message,
@@ -219,6 +219,14 @@ def test_provider_connection() -> str:
         )
         if not _message_content(response):
             raise RuntimeError("Gemini returned an empty test response.")
+    elif provider == "groq":
+        response = _groq_client().chat.completions.create(
+            model=status["model"],
+            messages=[{"role": "user", "content": "Reply with exactly AI_PROVIDER_OK"}],
+            max_tokens=256,
+        )
+        if not _message_content(response):
+            raise RuntimeError("Groq returned an empty test response.")
     else:
         response = _openai_client().responses.create(
             model=status["model"],

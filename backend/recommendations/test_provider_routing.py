@@ -20,7 +20,7 @@ HTML = '''<h1>Samsung Galaxy A57</h1><span>Rs. 166,999</span>
 <th class="specs-subHeading">Built-in</th><td class="specs-value">256GB Built-in, 8GB RAM</td>'''
 
 BASE = dict(API_KEY="", API_PROVIDER="auto", AI_PROVIDER="auto", AI_MODEL="", WEB_SEARCH_PROVIDER="auto",
-            GEMINI_API_KEY="", OPENAI_API_KEY="", TAVILY_API_KEY="", WEB_RESEARCH_ENABLED=True,
+            GEMINI_API_KEY="", OPENAI_API_KEY="", GROQ_API_KEY="", TAVILY_API_KEY="", WEB_RESEARCH_ENABLED=True,
             AUTO_WEB_RESEARCH_ENABLED=True, GEMINI_RESEARCH_SOURCE_DOMAINS=("whatmobile.com.pk", "priceoye.pk"))
 
 

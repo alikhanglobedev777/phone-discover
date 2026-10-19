@@ -1,7 +1,8 @@
 import type { Brand, Device, DeviceFilters, Paginated } from "../types";
+import { apiUrl } from "./apiUrl.ts";
 
 async function request<T>(url: string): Promise<T> {
-  const response = await fetch(url);
+  const response = await fetch(apiUrl(url));
   if (!response.ok) throw new Error(`Request failed: ${response.status}`);
   return response.json() as Promise<T>;
 }

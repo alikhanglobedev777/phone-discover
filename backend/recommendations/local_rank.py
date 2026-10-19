@@ -239,8 +239,8 @@ def local_explanation(criteria, summary):
             explanation = ("In filters ke liye local price data nahi mila. City, condition, PTA aur budget filters check karein; purani preferences hatane ke liye New chat use karein."
                            if roman else "No local price evidence matches these filters. Check city, condition, PTA and budget, or start a new chat to clear earlier preferences.")
         if research_configured():
-            explanation += (" Web research ke liye 'Request Gemini web research' select karein."
-                            if roman else " You can select 'Request Gemini web research' to check external sources.")
+            explanation += (" Web research ke liye 'Phone Discover Intelligence Web Research' select karein."
+                            if roman else " You can select 'Phone Discover Intelligence Web Research' to check external sources.")
         return explanation
     best = summary["results"][0]
     name = f"{best['device']['brand']} {best['device']['name']}".strip()

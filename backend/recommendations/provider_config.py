@@ -2,7 +2,9 @@
 
 from django.conf import settings
 
-SERVICES = ("gemini", "openai", "tavily")
+SERVICES = ("gemini", "openai", "groq", "tavily")
+AI_SERVICES = ("gemini", "openai", "groq")
+SEARCH_SERVICES = ("groq", "tavily", "gemini", "openai")
 
 
 def global_provider():
@@ -14,6 +16,8 @@ def global_provider():
         return explicit if explicit in SERVICES else "unknown"
     if key.startswith("AIza"):
         return "gemini"
+    if key.startswith("gsk_"):
+        return "groq"
     if key.startswith("sk-"):
         return "openai"
     if key.startswith("tvly-"):
@@ -30,18 +34,19 @@ def key_for(provider):
 
 def model_for(provider):
     override = str(getattr(settings, "AI_MODEL", "") or "").strip()
-    return (override if override and ai_selection() == provider else "") or getattr(
-        settings, "GEMINI_CHAT_MODEL" if provider == "gemini" else "OPENAI_CHAT_MODEL", "")
+    model_setting = {"gemini": "GEMINI_CHAT_MODEL", "openai": "OPENAI_CHAT_MODEL",
+                     "groq": "GROQ_MODEL"}.get(provider, "")
+    return (override if override and ai_selection() == provider else "") or getattr(settings, model_setting, "")
 
 
 def ai_selection():
     global_choice = global_provider()
     if global_choice is not None:
-        return global_choice if global_choice in ("gemini", "openai") else "deterministic"
+        return global_choice if global_choice in AI_SERVICES else "deterministic"
     requested = str(getattr(settings, "AI_PROVIDER", "auto")).strip().lower()
     if requested == "auto":
-        return next((p for p in ("gemini", "openai") if key_for(p)), "deterministic")
-    return requested if requested in ("gemini", "openai") and key_for(requested) else "deterministic"
+        return next((p for p in AI_SERVICES if key_for(p)), "deterministic")
+    return requested if requested in AI_SERVICES and key_for(requested) else "deterministic"
 
 
 def web_enabled():
@@ -59,11 +64,12 @@ def search_selection():
         return "unavailable"
     requested = str(getattr(settings, "WEB_SEARCH_PROVIDER", "auto")).strip().lower()
     if requested == "auto":
-        # Prefer a dedicated search service when both search and AI keys exist.
-        return next((p for p in ("tavily", "gemini", "openai") if key_for(p)), "source_pages")
+        # Groq GPT-OSS has server-side browser_search; retrieved product pages
+        # must still pass source restrictions and the existing import checks.
+        return next((p for p in SEARCH_SERVICES if key_for(p)), "source_pages")
     if requested == "source_pages":
         return requested
-    return requested if requested in SERVICES and key_for(requested) else "unavailable"
+    return requested if requested in SEARCH_SERVICES and key_for(requested) else "unavailable"
 
 
 def research_available():
@@ -72,8 +78,8 @@ def research_available():
 
 def public_provider_status():
     return {"ai_provider": ai_selection(), "search_provider": search_selection(),
-            "guidance_available": ai_selection() in ("gemini", "openai"),
+            "guidance_available": ai_selection() in AI_SERVICES,
             "research_available": research_available(),
             "automatic_research": auto_research_enabled() and research_available(),
-            "configuration_error": "Set API_PROVIDER to gemini, openai or tavily for this key."
+            "configuration_error": "Set API_PROVIDER to gemini, openai, groq or tavily for this key."
             if global_provider() == "unknown" else ""}
