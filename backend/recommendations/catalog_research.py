@@ -22,7 +22,15 @@ def source_url(value):
     try:
         parts = urlsplit(value)
         host = parts.hostname.lower().removeprefix("www.")
-        if parts.port not in (None, 443) or host not in settings.GEMINI_RESEARCH_SOURCE_DOMAINS:
+        # Search leads can come from any .pk product site, not just two sources.
+        # The fetcher additionally blocks private DNS targets, redirects and
+        # non-HTML pages; the importer requires exact model, variant and PKR price.
+        pakistan_site = (host.endswith(".pk") and host.count(".") >= 1)
+        known_pk_merchant = host in {"shophive.com"}
+        official_pakistan = host == "samsung.com" and parts.path.startswith("/pk/")
+        configured = host in settings.GEMINI_RESEARCH_SOURCE_DOMAINS
+        if (parts.port not in (None, 443) or not parts.path.startswith("/")
+                or not (configured or pakistan_site or known_pk_merchant or official_pakistan)):
             return None
     except ValueError:
         return None

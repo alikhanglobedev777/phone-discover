@@ -43,9 +43,21 @@ def _query(criteria):
 
 
 def research_with_tavily(criteria):
-    payload = {"query": _query(criteria), "search_depth": "basic", "auto_parameters": False,
-               "max_results": 6, "include_domains": list(settings.GEMINI_RESEARCH_SOURCE_DOMAINS),
-               "include_answer": False, "include_raw_content": False}
+    # Do not limit discovery to WhatMobile / PriceOye. Tavily can find an
+    # exact variant from other Pakistani sellers, but Django still verifies
+    # each fetched page before accepting it as database price evidence.
+    model_query = str(criteria.get("device_query") or criteria.get("comparison_target") or "").strip()
+    brand = str(criteria.get("brand") or "").strip()
+    # Prefer the canonical parsed model (e.g. Samsung Galaxy S26 Ultra).
+    # Quoting the raw "samsung s26 ultra" would hide correct Galaxy listings.
+    if model_query and brand and not model_query.casefold().startswith(brand.casefold() + " "):
+        model_query = f"{brand} {model_query}"
+    query = (f"{model_query} mobile price PKR Pakistan buy online" if model_query
+             else _query(criteria))
+    if criteria.get("ram_min") and criteria.get("storage_min"):
+        query += f" {criteria['ram_min']}GB RAM {criteria['storage_min']}GB storage"
+    payload = {"query": query, "search_depth": "basic", "auto_parameters": False,
+               "max_results": 12, "include_answer": False, "include_raw_content": False}
     request = Request("https://api.tavily.com/search", data=json.dumps(payload).encode(), method="POST",
                       headers={"Authorization": "Bearer " + key_for("tavily"), "Content-Type": "application/json"})
     try:
@@ -56,7 +68,7 @@ def research_with_tavily(criteria):
         data = json.loads(body)
         if not isinstance(data, dict) or not isinstance(data.get("results"), list):
             raise ValueError("Invalid search response")
-        return research_urls(criteria, data["results"][:6], provider="tavily")
+        return research_urls(criteria, data["results"][:12], provider="tavily")
     except HTTPError as exc:
         return _failure("tavily", "quota_exceeded" if exc.code in (429, 432, 433) else "authentication_failed" if exc.code in (401, 403) else "unavailable")
     except (OSError, ValueError, TypeError):
