@@ -204,9 +204,18 @@ def research_with_groq(criteria):
         # and requires a concrete RAM/storage variant with an explicit PKR price.
         return research_urls(criteria, links, provider="groq")
     except HTTPError as exc:
-        # Log only the numeric status, never the Authorization header or body.
-        # 403 can mean project/model permissions even with a valid API key.
-        logger.warning("Groq browser research rejected request: HTTP %s; model=%s", exc.code, model)
+        # An authenticated key can still lack permission to run browser_search.
+        # Record only the constrained error code, never messages or secrets.
+        error_code = "unknown"
+        try:
+            detail = json.loads(exc.read(4096))
+            candidate = detail.get("error", {}).get("code")
+            if isinstance(candidate, str) and re.fullmatch(r"[A-Za-z0-9_.-]{1,80}", candidate):
+                error_code = candidate
+        except (ValueError, TypeError, AttributeError):
+            pass
+        logger.warning("Groq browser research rejected request: HTTP %s; model=%s; code=%s",
+                       exc.code, model, error_code)
         status = ("quota_exceeded" if exc.code == 429 else
                   "authentication_failed" if exc.code == 401 else
                   "access_denied" if exc.code == 403 else "unavailable")
@@ -225,7 +234,20 @@ def research_catalog(criteria):
     result.setdefault("provider", provider)
     result.setdefault("results", [])
     result.setdefault("summary", "")
-    if provider != "source_pages" and result["status"] in ("unavailable", "quota_exceeded", "authentication_failed", "access_denied", "no_sources", "unsupported_model"):
+    failed = ("unavailable", "quota_exceeded", "authentication_failed", "access_denied",
+              "no_sources", "unsupported_model")
+    # Groq Browser Search is a separately authorized capability. When it fails,
+    # Tavily can discover candidate URLs; research_urls independently fetches
+    # and validates first-party product pages before anything enters the DB.
+    if provider == "groq" and result["status"] in failed and key_for("tavily"):
+        alternate = research_with_tavily(criteria)
+        if alternate.get("status") == "grounded_preview":
+            alternate["fallback_from"] = "groq"
+            alternate["provider_status"] = result["status"]
+            alternate.setdefault("results", [])
+            alternate.setdefault("summary", "")
+            return alternate
+    if provider != "source_pages" and result["status"] in failed:
         fallback = research_source_pages(criteria)
         if fallback["status"] == "grounded_preview":
             fallback["fallback_from"] = provider
