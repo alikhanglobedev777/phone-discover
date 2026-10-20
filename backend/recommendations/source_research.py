@@ -136,6 +136,62 @@ def parse_priceoye_product(html, url):
             "listing_status": "ended" if "DISCONTINUED" in plain or str(offers.get("availability", "")).endswith("OutOfStock") else "unknown"}
 
 
+def _whatmobile_exact_url(criteria):
+    """Build a bounded WhatMobile URL for a *specific* requested model only.
+
+    Do not search broad brand pages for a specifications-only result: the page
+    title must correspond to the exact model the visitor asked about.
+    """
+    brand = BRANDS.get(str(criteria.get("brand") or "").casefold())
+    model = str(criteria.get("device_query") or "").strip()
+    if not brand or not model:
+        return None
+    model = re.sub(r"\b\d{1,4}\s*(?:gb|tb)\b", " ", model, flags=re.I)
+    model = re.sub(r"\b(?:pakistan|mobile|phone)\b", " ", model, flags=re.I)
+    model = re.sub(r"^" + re.escape(brand) + r"\s+", "", model.strip(), flags=re.I).strip()
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 +\-]{1,63}", model):
+        return None
+    # The intent parser title-cases X90s to X90S; WhatMobile uses X90s.
+    model = re.sub(r"(?<=\d)S\b", "s", model)
+    return f"https://www.whatmobile.com.pk/{brand}_{'-'.join(model.split())}", brand, model
+
+
+def _specifications_only_reference(criteria, *, provider):
+    """Show sourced specs when an exact model lacks a verifiable retail price.
+
+    This result MUST NOT include a price or importable phone document. Expected
+    and coming-soon PKR values are not verified market offers.
+    """
+    target = _whatmobile_exact_url(criteria)
+    if target is None:
+        return None
+    url, brand, model = target
+    try:
+        page = ProductPage()
+        page.feed(_fetch(url))  # Restricted source host; redirects are blocked.
+    except (OSError, ValueError, TypeError, AttributeError):
+        return None
+    requested = re.sub(r"[^a-z0-9]", "", f"{brand}{model}".casefold())
+    found = re.sub(r"[^a-z0-9]", "", page.title.casefold())
+    if not page.title or requested != found:
+        return None
+    facts = []
+    for label, field in (("Chipset", "Chipset"), ("Display", "Technology"),
+                         ("Battery", "Capacity")):
+        value = " ".join(page.specs.get(field, "").split())[:105]
+        if value:
+            facts.append(f"{label}: {value}")
+    notice = (f"{page.title}: a specification page was found, but no verified "
+              "Pakistan retail price for this exact model and variant was confirmed. "
+              "Expected/coming-soon prices are not offers; no price was saved. "
+              "Specifications are source-reported, not independently reviewed.")
+    if facts:
+        notice += " " + "; ".join(facts) + "."
+    return {"status": "specifications_only", "provider": provider, "summary": "",
+            "sources": [{"url": url, "title": f"{page.title} — specifications only"}],
+            "results": [], "document": {"phones": []}, "notice": notice}
+
+
 def research_urls(criteria, sources, *, provider):
     """Normalize searched product pages into the same source-linked phone format."""
     if criteria.get("condition") not in (None, "box_pack"):
@@ -162,10 +218,17 @@ def research_urls(criteria, sources, *, provider):
             return None
     with ThreadPoolExecutor(max_workers=4) as pool:
         phones = [p for p in pool.map(read, urls) if p][:4]
+    if not phones:
+        reference = _specifications_only_reference(criteria, provider=provider)
+        if reference:
+            return reference
     return {"status": "grounded_preview" if phones else "no_sources", "provider": provider,
             "document": {"phones": phones},
             "sources": [{"url": p["source_url"], "title": f"{p['brand']} {p['name']}"} for p in phones],
-            "notice": "Web search results were checked against product pages. Prices and specifications are source-reported; city/PTA evidence remains unconfirmed where absent."}
+            "notice": ("Web search found no product page with a verifiable retail PKR price and exact memory variant. "
+                       "Expected or coming-soon prices are not treated as offers."
+                       if not phones else
+                       "Web search results were checked against product pages. Prices and specifications are source-reported; city/PTA evidence remains unconfirmed where absent.")}
 
 
 def research_source_pages(criteria):
@@ -175,9 +238,10 @@ def research_source_pages(criteria):
         return empty
     brand_key = criteria.get("brand")
     candidates = []
-    if criteria.get("device_query") and brand_key in BRANDS:
-        brand = BRANDS[brand_key]
-        candidates = [(f"https://www.whatmobile.com.pk/{brand}_{criteria['device_query'].replace(' ', '-')}", brand)]
+    target = _whatmobile_exact_url(criteria)
+    if target:
+        url, brand, _ = target
+        candidates = [(url, brand)]
     else:
         for brand in ([BRANDS[brand_key]] if brand_key in BRANDS else ["Samsung", "Xiaomi", "Infinix"]):
             try:
@@ -211,7 +275,8 @@ def research_source_pages(criteria):
     with ThreadPoolExecutor(max_workers=4) as pool:
         phones = [p for p in pool.map(read, candidates[:9]) if p][:4]
     if not phones:
-        return empty
+        reference = _specifications_only_reference(criteria, provider="source_pages")
+        return reference if reference else empty
     return {**empty, "status": "grounded_preview", "provider": "source_pages", "document": {"phones": phones},
             "sources": [{"url": p["source_url"], "title": f"{p['brand']} {p['name']} — WhatMobile"} for p in phones],
             "notice": "Researched directly from linked product pages. Prices/specifications are source-reported; city availability and PTA approval are unconfirmed."}
