@@ -2,9 +2,13 @@
 
 import re
 import json
+import ipaddress
+import socket
+from decimal import Decimal, InvalidOperation
 from concurrent.futures import ThreadPoolExecutor
 from html import unescape
 from html.parser import HTMLParser
+from urllib.error import HTTPError
 from urllib.parse import urljoin, urlsplit
 from urllib.request import Request, build_opener
 
@@ -60,8 +64,30 @@ class ProductPage(HTMLParser):
 def _fetch(url):
     if not source_url(url):
         raise ValueError("Unsupported source")
-    request = Request(url, headers={"User-Agent": "PhoneDiscover/1.0 (product fact lookup)", "Accept": "text/html"})
-    with build_opener(_NoRedirect()).open(request, timeout=12) as response:
+    # Any .pk merchant can be discovered. Never fetch a DNS target resolving
+    # to loopback, private, link-local or reserved addresses (SSRF prevention).
+    host = urlsplit(url).hostname
+    try:
+        resolved = socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)
+        if not resolved or any(not ipaddress.ip_address(addr[4][0]).is_global for addr in resolved):
+            raise ValueError("Non-public source host")
+    except (OSError, ValueError, TypeError, IndexError) as exc:
+        raise ValueError("Could not establish a public source host") from exc
+    headers = {"User-Agent": "PhoneDiscover/1.0 (product fact lookup)", "Accept": "text/html"}
+    opener = build_opener(_NoRedirect())
+    try:
+        response = opener.open(Request(url, headers=headers), timeout=12)
+    except HTTPError as exc:
+        # Some Pakistani product shops require a trailing slash. Permit only
+        # that exact same-origin canonical URL; never follow cross-site redirects.
+        destination = urljoin(url, exc.headers.get("Location") or "")
+        if (exc.code not in (301, 302, 307, 308) or destination == url
+                or source_url(destination) != source_url(url)
+                or urlsplit(destination).hostname != host
+                or not destination.endswith("/")):
+            raise
+        response = opener.open(Request(destination, headers=headers), timeout=12)
+    with response:
         if "text/html" not in response.headers.get("Content-Type", ""):
             raise ValueError("Not an HTML product page")
         body = response.read(1500001)
@@ -140,6 +166,108 @@ def parse_priceoye_product(html, url):
             "listing_status": "ended" if "DISCONTINUED" in plain or str(offers.get("availability", "")).endswith("OutOfStock") else "unknown"}
 
 
+def _retailer_variant(heading):
+    """Only a single, explicit RAM/storage pair in the product title counts."""
+    text = " ".join(unescape(re.sub(r"<[^>]*>", " ", heading)).split())
+    patterns = (
+        # "12GB RAM 256GB Storage" and "12GB 256GB"
+        r"\b(\d{1,2})\s*GB\s*(?:RAM\s*)?[/+\- ]+\s*(\d{2,4})\s*GB\b",
+        # "256GB - 12GB RAM"
+        r"\b(\d{2,4})\s*GB\s*[-/+ ]+\s*(\d{1,2})\s*GB\s*RAM\b",
+        # "12+256GB" / "12/256GB"
+        r"\b(\d{1,2})\s*[/+]\s*(\d{2,4})\s*GB\b",
+    )
+    found = []
+    for index, pattern in enumerate(patterns):
+        for match in re.finditer(pattern, text, flags=re.I):
+            a, b = (int(v) for v in match.groups())
+            ram, storage = (b, a) if index == 1 else (a, b)
+            if 1 <= ram <= 64 and 32 <= storage <= 4096:
+                found.append((ram, storage))
+    values = set(found)
+    return next(iter(values)) if len(values) == 1 else None
+
+
+def _pkr_amount(raw):
+    try:
+        price = Decimal(str(raw).replace(",", "").strip())
+        if price != price.to_integral_value() or not 3000 <= price <= 20000000:
+            return None
+        return str(int(price))
+    except (InvalidOperation, ValueError, TypeError):
+        return None
+
+
+def parse_pakistan_retailer_product(html, url, criteria):
+    """Only an exact model + a title-specific variant + retail PKR price.
+
+    This deliberately refuses blog estimates, multi-variant product pages,
+    international currencies and ads that lack a purchaseable product listing.
+    """
+    target = str(criteria.get("comparison_target") or criteria.get("device_query") or "").strip()
+    if not target:
+        raise ValueError("Retailer import needs an exact requested model")
+    heading_match = re.search(r"<h1\b[^>]*>(.*?)</h1\s*>", html, flags=re.I | re.S)
+    if not heading_match:
+        raise ValueError("Missing actual product title")
+    heading = " ".join(unescape(re.sub(r"<[^>]+>", " ", heading_match.group(1))).split())
+    variant = _retailer_variant(heading)
+    if not variant:
+        raise ValueError("Unambiguous memory pair is missing from product title")
+    brand = next((name for name in BRANDS.values()
+                  if heading.casefold().startswith(name.casefold() + " ")), None)
+    if not brand:
+        raise ValueError("Unrecognized phone manufacturer")
+    # Product title is required to start with the exact phone identity,
+    # followed by a memory variant. Extra promo words after it are not model names.
+    model_in_heading = re.split(
+        r"\b\d{1,4}\s*(?:GB\s*(?:RAM|ROM|Storage)?|[/+]\s*\d{2,4}\s*GB)\b",
+        heading[len(brand):].strip(), maxsplit=1, flags=re.I,
+    )[0].strip(" -–:|")
+    if not matches_phone_model(target, brand, model_in_heading):
+        raise ValueError("Retailer title does not identify requested exact model")
+    # Disallow source pages without real shopping signals, e.g. price blogs.
+    # JSON-LD Product+Offer is acceptable as a commerce signal too.
+    plain = " ".join(unescape(re.sub(r"<[^>]+>", " ", re.sub(
+        r"<(?:script|style|nav|header|footer)\b[^>]*>.*?</(?:script|style|nav|header|footer)>",
+        " ", html, flags=re.I | re.S))).split())
+    if not re.search(r"\b(?:add to cart|buy now|in stock|out of stock|sku|order now|checkout)\b", plain, re.I):
+        raise ValueError("Not a product selling page")
+    # Read a price near the specific H1, not another product in site navigation,
+    # a promoted recommendation, or an unrelated price elsewhere on the page.
+    price_section = html[heading_match.end():heading_match.end() + 9000]
+    sale_text = " ".join(unescape(re.sub(r"<[^>]+>", " ", re.sub(
+        r"<(?:script|style|nav|header|footer)\b[^>]*>.*?</(?:script|style|nav|header|footer)>",
+        " ", price_section, flags=re.I | re.S))).split())
+    if re.search(r"\b(?:expected price|price expected|price coming soon|coming soon \(expected)\b", sale_text[:750], re.I):
+        raise ValueError("This page advertises an expected price")
+
+    # Never substitute a crossed-out PKR list price when the actual quoted
+    # selling price is in another currency.
+    if re.search(r"\b(?:Special|Sale|Our|Selling)\s+Price\s*:?\s*(?:\$|USD|£|EUR)", sale_text[:1000], re.I):
+        raise ValueError("Selling price is not PKR")
+    amount = None
+    # Prefer an actual sale/special price to crossed-out list prices.
+    for pattern in (
+        r"\b(?:Special|Sale|Our|Selling)\s+Price\s*:?[\s\u00a0]*(?:Rs\.?|PKR|₨)\s*([\d,]+(?:\.\d{1,2})?)",
+        r"\b(?:Rs\.?|PKR|₨)\s*([\d,]+(?:\.\d{1,2})?)",
+    ):
+        match = re.search(pattern, sale_text[:4500], re.I)
+        if match and (amount := _pkr_amount(match.group(1))):
+            break
+    if not amount:
+        raise ValueError("No real PKR price visible on seller page")
+    if criteria.get("brand") and str(criteria["brand"]).casefold() != brand.casefold():
+        raise ValueError("Brand mismatch")
+    return {
+        "brand": brand, "name": model_in_heading, "ram_gb": variant[0], "storage_gb": variant[1],
+        "source_url": url, "price_min_pkr": amount, "price_max_pkr": amount,
+        "condition": "box_pack", "pta_status": "unknown", "city": "", "listing_status": "unknown",
+        "image_url": "", "operating_system": "", "chipset": "", "battery_mah": None,
+        "display_refresh_hz": None, "specifications": {},
+    }
+
+
 def _whatmobile_exact_url(criteria):
     """Build a bounded WhatMobile URL for a *specific* requested model only.
 
@@ -207,17 +335,20 @@ def research_urls(criteria, sources, *, provider):
     """Normalize searched product pages into the same source-linked phone format."""
     if criteria.get("condition") not in (None, "box_pack"):
         return {"status": "no_sources", "document": {"phones": []}, "sources": [], "notice": "These sources did not establish used-phone prices."}
-    urls = list(dict.fromkeys(u for item in sources if isinstance(item, dict) and (u := source_url(item.get("url")))))[:6]
+    urls = list(dict.fromkeys(u for item in sources if isinstance(item, dict) and (u := source_url(item.get("url")))))[:12]
     def read(url):
         try:
             html = _fetch(url)
-            if urlsplit(url).hostname.removeprefix("www.") == "priceoye.pk":
+            host = urlsplit(url).hostname.removeprefix("www.")
+            if host == "priceoye.pk":
                 phone = parse_priceoye_product(html, url)
-            else:
+            elif host == "whatmobile.com.pk":
                 brand = BRANDS.get(urlsplit(url).path.strip("/").split("_", 1)[0].lower())
                 if not brand:
                     return None
                 phone = parse_product(html, url, brand)
+            else:
+                phone = parse_pakistan_retailer_product(html, url, criteria)
             if criteria.get("brand") and phone["brand"].lower() != criteria["brand"].lower():
                 return None
             # Product-page URL and parsed title must agree before we trust it.
