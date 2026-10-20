@@ -39,8 +39,8 @@ def extract_memory_pairs(value):
         (r"\b(\d{1,2})\s*GB\s*(?:RAM\s*)?[/+\- ]+\s*(\d{2,4}|[1-4])\s*(GB|TB)\b", False),
         # 12GB RAM, 512GB Built-in (RAM-first with comma)
         (r"\b(\d{1,2})\s*GB\s*RAM\s*,\s*(\d{2,4}|[1-4])\s*(GB|TB)\s*(?:Built-in|Storage|ROM)\b", False),
-        # 256GB Built-in, 8GB RAM / 1TB Storage, 16GB RAM
-        (r"\b(\d{2,4}|[1-4])\s*(GB|TB)\s*(?:Built-in|Storage|ROM)\s*[,;/\- ]+\s*(\d{1,2})\s*GB\s*RAM\b", True),
+        # 256GB Built-in, 8GB RAM / 256GB, Built-in, 12GB RAM
+        (r"(?<!/)\b(\d{2,4}|[1-4])\s*(GB|TB)\s*,?\s*(?:Built-in|Storage|ROM)\s*[,;/\- ]+\s*(\d{1,2})\s*GB\s*RAM\b", True),
         # 256GB - 12GB RAM (retailer headings)
         (r"\b(\d{2,4}|[1-4])\s*(GB|TB)\s*[-/]\s*(\d{1,2})\s*GB\s*RAM\b", True),
         # 8/128GB or 12+256GB (explicit slash notation)
