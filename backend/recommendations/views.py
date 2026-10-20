@@ -20,6 +20,8 @@ from .guidance import guidance_configured, generate_general_guidance
 from .providers import explain_recommendation
 from .serializers import RecommendationRequestSerializer, PakistanRecommendationSerializer, ConversationRequestSerializer
 from .local_rank import interpret_local_request, rank_pakistan_phones, local_explanation, price_reference_alternatives
+from .local_intent import parse_pakistan_intent
+from .model_identity import matches_phone_model
 from .services import (
     build_criteria,
     json_ready,
@@ -42,18 +44,27 @@ class ComparisonPhoneLookupView(APIView):
         serializer = ComparisonLookupSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         requested = serializer.validated_data["query"]
-        normalized = slugify(re.sub(r"\b\d+\s*(?:gb|tb)\b", "", requested, flags=re.I))
-        local = Device.objects.filter(is_published=True).select_related("brand").filter(
-            Q(name__icontains=requested) | Q(slug__icontains=normalized)
-        )[:5]
+        parsed = parse_pakistan_intent(requested)
+        brand = parsed.get("brand")
+        model_query = parsed.get("device_query") or requested
+
         def rows(devices):
             return [{"slug": d.slug, "name": d.name, "brand": d.brand.name,
                      "primary_image_url": d.primary_image_url, "data_source": d.data_source}
-                    for d in devices]
+                    for d in devices if matches_phone_model(requested, d.brand.name, d.name)]
+
+        # Use canonical names for local discovery; a bare "S24 Ultra" should
+        # locate the existing "Galaxy S24 Ultra" instead of wasting a web call.
+        local = Device.objects.filter(is_published=True).select_related("brand")
+        if brand:
+            local = local.filter(brand__slug__iexact=brand)
+        local = local.filter(
+            Q(name__icontains=model_query) | Q(slug__icontains=slugify(model_query))
+        )[:20]
         matches = rows(local)
         if matches:
             return Response({"status": "found_local", "devices": matches,
-                             "notice": "This phone is already in the catalog.", "sources": []})
+                             "notice": "This exact phone is already in the catalog.", "sources": []})
         if not research_configured():
             return Response({"status": "unavailable", "devices": [], "sources": [],
                              "notice": "Web research is not configured. Please try another phone."})
@@ -61,24 +72,23 @@ class ComparisonPhoneLookupView(APIView):
             return Response({"status": "rate_limited", "devices": [], "sources": [],
                              "notice": "Research limit reached. Please try again later."}, status=429)
         import uuid
-        from .local_rank import interpret_local_request
         criteria = interpret_local_request({"message": requested, "session_id": uuid.uuid4(),
                                             "strict_budget": True, "max_results": 5})
-        criteria["device_query"] = requested
+        criteria["device_query"] = model_query
         criteria["comparison_target"] = requested
         research = research_and_save(criteria)
-        slugs = [card.get("device", {}).get("slug") for card in research.get("results", [])]
-        candidates = Device.objects.filter(is_published=True).select_related("brand").filter(
-            Q(slug__in=[slug for slug in slugs if slug]) | Q(slug=normalized)
-        )[:5]
+        # Use the importer-returned slugs, not ranking cards. Ranking uses
+        # price evidence and can yield [] after a successful DB import.
+        slugs = research.get("saved_device_slugs", [])
+        candidates = Device.objects.filter(is_published=True, slug__in=slugs).select_related("brand")
         matched = rows(candidates)
         return Response({"status": "researched" if matched else research.get("status", "not_found"),
-                         "devices": matched,
-                         "sources": research.get("sources", []),
+                         "devices": matched, "sources": research.get("sources", []),
                          "saved": research.get("saved", {}),
-                         "notice": ("Source-backed phone information was saved to the catalog. Review details and prices before buying."
-                                    if matched else "No source-backed details for this exact model passed validation. Try another model name."
-                                    if research.get("status") == "grounded_preview" else research.get("notice") or "No verifiable matching phone was found.")})
+                         "notice": ("Source-backed information for this exact phone was saved. "
+                                    "Review reported specifications and prices before buying."
+                                    if matched else research.get("notice") or
+                                    "No verifiable exact-model product and price evidence was found.")})
 
 
 class RecommendationView(APIView):

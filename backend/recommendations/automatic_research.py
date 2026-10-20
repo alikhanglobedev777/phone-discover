@@ -36,12 +36,16 @@ def cached_research(criteria):
         result = {k: v for k, v in cached.items() if k != "_slugs"}
         # Revalidate visibility, source decisions and freshness without writes.
         result["results"] = _research_cards(criteria, slugs) if slugs else []
+        result["saved_device_slugs"] = slugs
         return {**result, "cached": True, "catalog_updated": False}
     return None
 
 
 def _research_cards(criteria, slugs):
-    reference = {**criteria, "device_slugs": slugs, "city": None, "pta_verification": None}
+    # Import already checked exact model identity. A free-form search query
+    # like "samsung s24 ultra" must not hide "Galaxy S24 Ultra" after saving.
+    reference = {**criteria, "device_slugs": slugs, "device_query": None,
+                 "city": None, "pta_verification": None}
     if reference.get("pta_status") == "approved":
         reference["pta_status"] = None
     cards = rank_pakistan_phones(reference)["results"]
@@ -108,6 +112,9 @@ def research_and_save(criteria):
         stats, slugs = import_web_phones(dict(research))
         research.pop("document", None)
         research["saved"] = stats
+        # Return the imported device identities regardless of ranking filters;
+        # the comparison endpoint rechecks exact model identity before display.
+        research["saved_device_slugs"] = slugs
         research["catalog_updated"] = bool(stats["prices_saved"])
         if slugs:
             # Saved discoveries may be useful references even when a source does

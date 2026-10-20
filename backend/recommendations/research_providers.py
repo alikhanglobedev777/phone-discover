@@ -235,7 +235,7 @@ def research_catalog(criteria):
     result.setdefault("results", [])
     result.setdefault("summary", "")
     failed = ("unavailable", "quota_exceeded", "authentication_failed", "access_denied",
-              "no_sources", "unsupported_model")
+              "no_sources", "unsupported_model", "specifications_only")
     # Groq Browser Search is a separately authorized capability. When it fails,
     # Tavily can discover candidate URLs; research_urls independently fetches
     # and validates first-party product pages before anything enters the DB.
@@ -249,10 +249,16 @@ def research_catalog(criteria):
             return alternate
     if provider != "source_pages" and result["status"] in failed:
         fallback = research_source_pages(criteria)
-        if fallback["status"] == "grounded_preview":
+        # A real, exact product-page price outranks a specifications-only
+        # reference. Keep the latter if neither route establishes a price.
+        if fallback["status"] == "grounded_preview" or (
+            fallback["status"] == "specifications_only"
+            and result["status"] != "specifications_only"
+        ):
             fallback["fallback_from"] = provider
             fallback["provider_status"] = result["status"]
-            fallback["results"], fallback["summary"] = [], ""
+            fallback.setdefault("results", [])
+            fallback.setdefault("summary", "")
             return fallback
     return result
 

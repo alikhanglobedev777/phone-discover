@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { safeSourceUrl } from "../lib/pakistan";
 import { canCompareStartingPrices } from "../lib/comparison";
-import { getDevices, researchComparisonPhone } from "../lib/api";
+import { researchComparisonPhone } from "../lib/api";
 import type { ComparisonLookupResult } from "../lib/api";
 import type { CSSProperties, FormEvent, ReactNode } from "react";
-import type { Device, DeviceFilters, Variant } from "../types";
+import type { Device, Variant } from "../types";
 
 type Props = {
   devices: Device[];
@@ -83,26 +83,16 @@ export function ComparisonPage({ devices, loading, onClose, onRemove, onAdd, onO
     requestRef.current?.abort();
     const controller = new AbortController();
     requestRef.current = controller;
-    setFound([]); setSources([]); setLookupNotice(""); setPhase("local");
+    setFound([]); setSources([]); setLookupNotice(""); setPhase("web");
+    setLookupNotice("Checking the exact phone in your local catalog first. If missing, searching trusted source pages and saving verified prices…");
     try {
-      const filters: DeviceFilters = {search: term, brand: "", status: "", price_max: "",
-        ram_min: "", storage_min: "", camera_score_min: "", gaming_score_min: "", country: ""};
-      const response = await getDevices(filters);
+      // One endpoint owns both exact local lookup and the source-backed import.
+      // Generic catalog search can return siblings (e.g. S24+ for S24 Ultra).
+      const researched = await researchComparisonPhone(term, controller.signal);
       if (controller.signal.aborted) return;
-      const matches = response.results.map((device) => ({slug: device.slug, name: device.name,
-        brand: device.brand.name, primary_image_url: device.primary_image_url, data_source: device.data_source ?? "catalog"}));
-      if (matches.length) {
-        setFound(matches);
-        setLookupNotice(`Found ${matches.length} phone${matches.length === 1 ? "" : "s"} in our catalog. Select one to compare.`);
-      } else {
-        setPhase("web");
-        setLookupNotice("Not found in our local catalog. Searching trusted phone websites with Phone Discover Intelligence… This can take up to a minute.");
-        const researched = await researchComparisonPhone(term, controller.signal);
-        if (controller.signal.aborted) return;
-        setFound(researched.devices);
-        setSources(researched.sources);
-        setLookupNotice(researched.notice || "Research finished. No eligible matching phone was found.");
-      }
+      setFound(researched.devices);
+      setSources(researched.sources);
+      setLookupNotice(researched.notice || "No eligible exact phone model was found.");
     } catch (error) {
       if (!controller.signal.aborted) setLookupNotice(error instanceof Error ? error.message : "Search failed. Try again.");
     } finally {
