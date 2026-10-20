@@ -90,7 +90,7 @@ class DeviceAdmin(admin.ModelAdmin):
     readonly_fields = ("created_at", "updated_at")
     list_select_related = ("brand",)
     save_on_top = True
-    actions = ("publish_devices", "unpublish_devices")
+    actions = ("publish_devices", "unpublish_devices", "enrich_cited_options")
     fieldsets = (
         ("Identity", {"fields": ("brand", "name", "slug", "summary")}),
         ("Launch and availability", {"fields": ("status", "release_date", "operating_system")}),
@@ -120,6 +120,44 @@ class DeviceAdmin(admin.ModelAdmin):
     def unpublish_devices(self, request, queryset):
         count = queryset.update(is_published=False)
         self.message_user(request, f"Unpublished {count} phone(s).", messages.SUCCESS)
+
+    @admin.action(description="Enrich variants and colors from cited product pages", permissions=["change"])
+    def enrich_cited_options(self, request, queryset):
+        """Bounded staff-triggered backfill; never invent options or prices.
+
+        Existing permitted price-source URLs are the only inputs. Product
+        identity is checked against the saved phone before creating options.
+        No raw search results or unseen variant price is saved here.
+        """
+        from recommendations.source_research import _fetch
+        from recommendations.phone_options import extract_source_options
+        from .web_import import save_catalog_options
+
+        created_variants = created_colors = checked = 0
+        for device in queryset.select_related("brand")[:5]:
+            urls = list(MarketPriceObservation.objects.filter(
+                variant__device=device,
+                source__reuse_status=ResearchSource.ReuseStatus.PERMITTED,
+            ).exclude(source__reuse_notes="").values_list("source__url", flat=True).distinct()[:4])
+            for url in urls:
+                try:
+                    html = _fetch(url)
+                    options = extract_source_options(html, url, device.brand.name, device.name)
+                    pairs = [(v["ram_gb"], v["storage_gb"]) for v in options["variants"]]
+                    with transaction.atomic():
+                        v, c = save_catalog_options(device, pairs, options["colors"], url)
+                    created_variants += v
+                    created_colors += c
+                    checked += 1
+                except (OSError, ValueError, TypeError, KeyError):
+                    continue
+        self.message_user(
+            request,
+            f"Checked {checked} cited page(s); added {created_variants} RAM/storage "
+            f"variant(s) and {created_colors} color(s). "
+            "Only options documented by those pages were imported; prices were unchanged.",
+            messages.INFO,
+        )
 
 
 class SpecificationItemInline(admin.TabularInline):
