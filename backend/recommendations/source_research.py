@@ -110,7 +110,9 @@ def parse_product(html, url, brand):
         raise ValueError("Expected pricing is not an observed retail price")
     price = re.search(r"\bRs\.?\s*([\d,]{4,})\b", text)
     memory = page.specs.get("Built-in", "")
-    storage = re.search(r"(?<![\d/])\b(\d{2,4})\s*GB\s+Built-in", memory, re.I)
+    # WhatMobile also writes "256GB, Built-in, 12GB RAM" (comma after GB).
+    # Keep the slash/list rejection below: one page price cannot price multiple SKUs.
+    storage = re.search(r"(?<![\d/])\b(\d{2,4})\s*GB\s*,?\s*Built-in", memory, re.I)
     ram = re.search(r"(?<![\d/])\b(\d{1,2})\s*GB\s+RAM", memory, re.I)
     # A list of configurations cannot establish which variant owns the price.
     if not price or not ram or not storage or "/" in memory:
