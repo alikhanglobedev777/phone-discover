@@ -13,6 +13,7 @@ from catalog.web_import import import_web_phones
 from .research_providers import research_catalog
 from .provider_config import search_selection, key_for, model_for
 from .local_rank import rank_pakistan_phones
+from .model_identity import matches_phone_model
 
 
 def _cache_key(criteria):
@@ -78,15 +79,33 @@ def research_and_save(criteria):
                 "notice": "A matching web search is already running. Please retry shortly."}
     try:
         research = research_catalog(criteria)
-        if criteria.get("comparison_target") and research.get("status") == "grounded_preview":
+        # Exact model queries must not import or display a different model
+        # returned by a broader web search (for example Vivo V80 Lite vs X90s).
+        requested_model = criteria.get("comparison_target") or criteria.get("device_query")
+        if requested_model and research.get("status") == "grounded_preview":
             document = research.get("document") or {}
             if isinstance(document, dict):
                 phones = document.get("phones", [])
-                research["document"] = {**document, "phones": [
+                matched = [
                     phone for phone in (phones if isinstance(phones, list) else [])
-                    if isinstance(phone, dict) and _matches_comparison_target(phone, criteria["comparison_target"])
-                ]}
-        stats, slugs = import_web_phones(research)
+                    if isinstance(phone, dict) and matches_phone_model(
+                        requested_model, phone.get("brand", ""), phone.get("name", "")
+                    )
+                ]
+                research["document"] = {**document, "phones": matched}
+                source_urls = {phone.get("source_url") for phone in matched}
+                research["sources"] = [
+                    source for source in research.get("sources", [])
+                    if isinstance(source, dict) and source.get("url") in source_urls
+                ]
+                if not matched:
+                    research["status"] = "no_sources"
+                    research["notice"] = (
+                        "No source-backed evidence for that exact phone model was found. "
+                        "Other models were excluded."
+                    )
+        # Give the importer a separate mapping; the public response omits raw documents.
+        stats, slugs = import_web_phones(dict(research))
         research.pop("document", None)
         research["saved"] = stats
         research["catalog_updated"] = bool(stats["prices_saved"])

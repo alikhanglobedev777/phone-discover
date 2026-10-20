@@ -10,6 +10,7 @@ from decimal import Decimal
 
 from catalog.search import search_local_catalog
 from .local_intent import parse_pakistan_intent
+from .model_identity import matches_phone_model
 
 DEFAULT_DIMENSIONS = ("camera", "gaming", "battery", "display", "value")
 MAX_LOCAL_CANDIDATES = 250
@@ -113,6 +114,16 @@ def rank_pakistan_phones(criteria: dict, *, reference_location_only=False):
         searched += len(page_data["results"])
         if not page_data["has_more"]:
             break
+
+    # Fuzzy catalog search can match an unrelated phone via its summary or
+    # chipset. Never return a sibling model for an explicit model request.
+    if criteria.get("device_query"):
+        all_cards = [
+            card for card in all_cards
+            if matches_phone_model(criteria["device_query"], card["brand"]["name"], card["name"])
+        ]
+        if not (total_count is not None and total_count > searched):
+            total_count = len(all_cards)
 
     ranked = []
     for card in all_cards:
