@@ -152,8 +152,12 @@ def parse_pakistan_intent(message: str) -> dict:
         # Model lookups must miss locally and trigger discovery rather than
         # quietly returning unrelated phones from the same brand.
         patterns = (
-            ("samsung", r"\b(?:samsung\s+)?galaxy\s+([asfmz]\d{1,3}(?:\s+(?:ultra|plus|fe|5g))*)\b", "Galaxy "),
-            ("samsung", r"\bsamsung\s+([asfmz]\d{1,3}(?:\s+(?:ultra|plus|fe|5g))*)\b", "Galaxy "),
+            # Some shoppers write "Samsung 26 Ultra" or "Samsung S 26 Ultra".
+            # The numeric shorthand is accepted only with an S-series suffix;
+            # "Samsung 26" alone could be a price, quantity or model family.
+            ("samsung", r"\b(?:samsung\s+)?galaxy\s+([asfmz]\s*\d{1,3}(?:\s+(?:ultra|plus|fe|5g))*)\b", "Galaxy "),
+            ("samsung", r"\bsamsung\s+([asfmz]\s*\d{1,3}(?:\s+(?:ultra|plus|fe|5g))*)\b", "Galaxy "),
+            ("samsung", r"\bsamsung\s+(?:galaxy\s+)?(\d{2}\s+(?:ultra|plus|fe)(?:\s+5g)?)\b", "Galaxy S"),
             ("xiaomi", r"\b(?:xiaomi\s+)?redmi\s+(note\s+\d{1,2}(?:\s+(?:pro|plus|5g))*)\b", "Redmi "),
             ("infinix", r"\binfinix\s+((?:note|hot|zero)\s+\d{1,3}(?:\s+(?:pro|plus|5g))*)\b", ""),
             ("tecno", r"\btecno\s+((?:camon|spark|pova)\s+\d{1,3}(?:\s+(?:pro|plus|5g))*)\b", ""),
@@ -166,6 +170,10 @@ def parse_pakistan_intent(message: str) -> dict:
             if exact:
                 result["brand"] = brand
                 model_name = exact.group(1)
+                if brand == "samsung":
+                    # Normalize "S 26" to "S26" so local search, Tavily and
+                    # exact identity checks use the same canonical model.
+                    model_name = re.sub(r"^([asfmz])\s+(?=\d)", r"\1", model_name, flags=re.I)
                 result["device_query"] = prefix + (model_name[:1].upper() + model_name[1:]
                                                    if brand == "vivo" else model_name.title())
                 break

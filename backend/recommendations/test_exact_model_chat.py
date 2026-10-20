@@ -1,10 +1,12 @@
 """Do not replace specific phone models with other phones of the same brand."""
 
 from unittest.mock import patch
+import uuid
 
 from django.test import SimpleTestCase, override_settings
 
 from .local_intent import parse_pakistan_intent
+from .conversation import build_conversation_criteria
 from .local_rank import rank_pakistan_phones
 from .model_identity import matches_phone_model
 from .automatic_research import research_and_save
@@ -15,6 +17,50 @@ class ExactModelChatTests(SimpleTestCase):
         parsed = parse_pakistan_intent("Tell me about Vivo X90s in Pakistan")
         self.assertEqual(parsed["brand"], "vivo")
         self.assertEqual(parsed["device_query"].casefold(), "x90s")
+
+    def test_samsung_s26_ultra_shorthand_is_an_exact_model(self):
+        for message in (
+            "samsung 26 ultra",
+            "samsung s26 ultra",
+            "Samsung S 26 Ultra",
+            "Samsung Galaxy 26 Ultra",
+            "Samsung Galaxy S26 Ultra",
+        ):
+            with self.subTest(message=message):
+                parsed = parse_pakistan_intent(message)
+                self.assertEqual(parsed["brand"], "samsung")
+                self.assertEqual(parsed["device_query"], "Galaxy S26 Ultra")
+
+    def test_samsung_shorthand_identity_never_matches_a27(self):
+        for query in ("samsung 26 ultra", "samsung s 26 ultra", "Samsung Galaxy 26 Ultra"):
+            with self.subTest(query=query):
+                self.assertTrue(matches_phone_model(query, "Samsung", "Galaxy S26 Ultra"))
+                self.assertFalse(matches_phone_model(query, "Samsung", "Galaxy A27"))
+                self.assertFalse(matches_phone_model(query, "Samsung", "Galaxy S26 Plus"))
+                self.assertFalse(matches_phone_model(query, "Samsung", "Galaxy S25 Ultra"))
+        self.assertFalse(matches_phone_model("Samsung 26", "Samsung", "Galaxy S26 Ultra"))
+        self.assertNotIn("device_query", parse_pakistan_intent("Samsung 26"))
+
+    def test_new_samsung_request_replaces_previous_model_in_conversation(self):
+        criteria = build_conversation_criteria(
+            {"message": "samsung 26 ultra", "session_id": uuid.uuid4()},
+            {"message", "session_id"},
+            {"brand": "samsung", "device_query": "Galaxy A27"},
+        )
+        self.assertEqual(criteria["device_query"], "Galaxy S26 Ultra")
+
+    @patch("recommendations.local_rank.search_local_catalog")
+    def test_samsung_shorthand_never_recommends_unrelated_local_a27(self, search):
+        search.return_value = {"count": 1, "has_more": False, "results": [
+            {"name": "Galaxy A27", "brand": {"name": "Samsung"}},
+        ]}
+        criteria = {"device_query": parse_pakistan_intent("samsung 26 ultra")["device_query"],
+                    "brand": "samsung", "priorities": [], "strict_budget": True,
+                    "max_results": 3, "budget_pkr": None}
+        ranked = rank_pakistan_phones(criteria)
+        self.assertEqual(ranked["results"], [])
+        self.assertTrue(ranked["needs_research"])
+        self.assertEqual(ranked["research_reason"], "no_matching_local_evidence")
 
     def test_sibling_models_are_not_equivalent(self):
         self.assertTrue(matches_phone_model("vivo x90s", "Vivo", "X90s"))
