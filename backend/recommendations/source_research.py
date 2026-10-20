@@ -10,6 +10,7 @@ from urllib.request import Request, build_opener
 
 from .catalog_research import source_url
 from .gemini_research import _NoRedirect
+from .model_identity import matches_phone_model
 
 BRANDS = {name.lower(): name for name in ("Samsung", "Xiaomi", "Infinix", "Vivo", "Tecno", "Realme", "Oppo", "Apple", "Honor", "Nokia", "Google")}
 
@@ -75,7 +76,10 @@ def parse_product(html, url, brand):
     if not page.title.casefold().startswith(brand.casefold() + " "):
         raise ValueError("Product identity not found")
     text = " ".join(" ".join(page.text).split())
-    if re.search(r"\b(?:coming\s+soon|expected\s+price|price\s+expected)\b", text[:300], re.I):
+    # Many retailer headers contain an unrelated "Coming Soon" navigation tab.
+    # Reject only a price explicitly marked as expected or coming soon.
+    if re.search(r"\b(?:Rs\.?\s*Coming\s+Soon|Expected\s+Price|Price\s+Expected|Expected\s+Rs\.?)\b",
+                 text[:500], re.I):
         raise ValueError("Expected pricing is not an observed retail price")
     price = re.search(r"\bRs\.?\s*([\d,]{4,})\b", text)
     memory = page.specs.get("Built-in", "")
@@ -151,6 +155,13 @@ def _whatmobile_exact_url(criteria):
     model = re.sub(r"^" + re.escape(brand) + r"\s+", "", model.strip(), flags=re.I).strip()
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 +\-]{1,63}", model):
         return None
+    # "Samsung S24 Ultra" is canonically "Samsung Galaxy S24 Ultra" on
+    # WhatMobile. Preserve distinctions such as Plus / Ultra / FE.
+    if brand.casefold() == "samsung":
+        if re.match(r"^[asfmz]\d{1,3}\b", model, re.I):
+            model = "Galaxy " + model
+        # WhatMobile product paths are case-sensitive.
+        model = " ".join(word[:1].upper() + word[1:] for word in model.split())
     # The intent parser title-cases X90s to X90S; WhatMobile uses X90s.
     model = re.sub(r"(?<=\d)S\b", "s", model)
     return f"https://www.whatmobile.com.pk/{brand}_{'-'.join(model.split())}", brand, model
@@ -209,6 +220,18 @@ def research_urls(criteria, sources, *, provider):
                 phone = parse_product(html, url, brand)
             if criteria.get("brand") and phone["brand"].lower() != criteria["brand"].lower():
                 return None
+            # Product-page URL and parsed title must agree before we trust it.
+            if urlsplit(url).hostname.removeprefix("www.") == "whatmobile.com.pk":
+                path_model = urlsplit(url).path.strip("/").split("_", 1)
+                if len(path_model) != 2 or not matches_phone_model(
+                    path_model[1].replace("-", " "), phone["brand"], phone["name"]
+                ):
+                    return None
+            # Search APIs return nearby products (e.g. S24+ for S24 Ultra).
+            # Reject them BEFORE a nonempty result prevents direct-page fallback.
+            target = criteria.get("comparison_target") or criteria.get("device_query")
+            if target and not matches_phone_model(target, phone["brand"], phone["name"]):
+                return None
             if criteria.get("budget_pkr") and float(phone["price_max_pkr"]) > criteria["budget_pkr"]:
                 return None
             if phone["ram_gb"] < (criteria.get("ram_min") or 0) or phone["storage_gb"] < (criteria.get("storage_min") or 0):
@@ -265,6 +288,9 @@ def research_source_pages(criteria):
         url, brand = item
         try:
             phone = parse_product(_fetch(url), url, brand)
+            target_model = criteria.get("comparison_target") or criteria.get("device_query")
+            if target_model and not matches_phone_model(target_model, phone["brand"], phone["name"]):
+                return None
             if criteria.get("budget_pkr") and int(phone["price_max_pkr"]) > criteria["budget_pkr"]:
                 return None
             if phone["ram_gb"] < (criteria.get("ram_min") or 0) or phone["storage_gb"] < (criteria.get("storage_min") or 0):

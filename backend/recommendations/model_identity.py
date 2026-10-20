@@ -25,4 +25,8 @@ def matches_phone_model(query, brand, name):
         requested_id = requested_id[len(prefix):]
     if model_id.startswith(prefix):
         model_id = model_id[len(prefix):]
+    # "Samsung S24 Ultra" and "Samsung Galaxy S24 Ultra" identify the same
+    # device, but S24 / S24 Plus / S24 Ultra remain different exact models.
+    if brand_id == "samsung" and re.match(r"^[asfmz]\d{1,3}(?:-|$)", requested_id):
+        requested_id = "galaxy-" + requested_id
     return bool(requested_id and requested_id == model_id)
