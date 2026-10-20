@@ -15,8 +15,9 @@ from urllib.request import Request, build_opener
 from .catalog_research import source_url
 from .gemini_research import _NoRedirect
 from .model_identity import matches_phone_model
+from .phone_options import extract_source_options
 
-BRANDS = {name.lower(): name for name in ("Samsung", "Xiaomi", "Infinix", "Vivo", "Tecno", "Realme", "Oppo", "Apple", "Honor", "Nokia", "Google")}
+BRANDS = {name.lower(): name for name in ("Samsung", "Xiaomi", "Redmi", "Poco", "Infinix", "Vivo", "Tecno", "Realme", "Oppo", "Apple", "Honor", "Nokia", "Google", "OnePlus", "Motorola", "Nothing", "Itel")}
 
 
 class ProductPage(HTMLParser):
@@ -367,11 +368,16 @@ def research_urls(criteria, sources, *, provider):
                 return None
             if phone["ram_gb"] < (criteria.get("ram_min") or 0) or phone["storage_gb"] < (criteria.get("storage_min") or 0):
                 return None
+            # These options are parsed from the actual, validated product page.
+            options = extract_source_options(html, url, phone["brand"], phone["name"])
+            phone["available_variants"] = options["variants"]
+            phone["available_colors"] = options["colors"]
+            phone["_source_parsed_options"] = True
             return phone
         except (OSError, ValueError, TypeError, AttributeError):
             return None
     with ThreadPoolExecutor(max_workers=4) as pool:
-        phones = [p for p in pool.map(read, urls) if p][:4]
+        phones = [p for p in pool.map(read, urls) if p][:8]
     if not phones:
         reference = _specifications_only_reference(criteria, provider=provider)
         if reference:
@@ -418,7 +424,8 @@ def research_source_pages(criteria):
     def read(item):
         url, brand = item
         try:
-            phone = parse_product(_fetch(url), url, brand)
+            html = _fetch(url)
+            phone = parse_product(html, url, brand)
             target_model = criteria.get("comparison_target") or criteria.get("device_query")
             if target_model and not matches_phone_model(target_model, phone["brand"], phone["name"]):
                 return None
@@ -426,6 +433,11 @@ def research_source_pages(criteria):
                 return None
             if phone["ram_gb"] < (criteria.get("ram_min") or 0) or phone["storage_gb"] < (criteria.get("storage_min") or 0):
                 return None
+            # These options are parsed from the actual, validated product page.
+            options = extract_source_options(html, url, phone["brand"], phone["name"])
+            phone["available_variants"] = options["variants"]
+            phone["available_colors"] = options["colors"]
+            phone["_source_parsed_options"] = True
             return phone
         except (OSError, ValueError):
             return None

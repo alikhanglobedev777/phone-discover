@@ -199,6 +199,18 @@ export function ComparisonPage({ devices, loading, onClose, onRemove, onAdd, onO
           <ComparisonRow label="Released" style={gridStyle} cells={devices.map((device) => ({ content: device.release_date ?? "—" }))} />
           <ComparisonRow label="Operating system" style={gridStyle} cells={devices.map((device) => ({ content: device.operating_system }))} />
 
+          <div className="comparison-group-title">Configurations and finishes</div>
+          <ComparisonRow label="RAM / storage options" style={gridStyle} cells={devices.map((device) => ({
+            content: device.variants?.length
+              ? [...device.variants]
+                  .sort((a, b) => a.ram_gb - b.ram_gb || a.storage_gb - b.storage_gb)
+                  .map((item) => `${item.ram_gb}GB / ${item.storage_gb === 1024 ? "1TB" : `${item.storage_gb}GB`}`)
+                  .join(", ")
+              : "Not documented",
+          }))} />
+          <ComparisonRow label="Documented colors" style={gridStyle} cells={devices.map((device) => ({
+            content: device.colors?.length ? device.colors.map((color) => color.name).join(", ") : "Not documented",
+          }))} />
           <div className="comparison-group-title">Core hardware</div>
           <ComparisonRow label="RAM" best="max" style={gridStyle} cells={devices.map((device) => ({ content: `${mainVariant(device)?.ram_gb ?? "—"} GB`, numeric: mainVariant(device)?.ram_gb }))} />
           <ComparisonRow label="Storage" best="max" style={gridStyle} cells={devices.map((device) => ({ content: `${mainVariant(device)?.storage_gb ?? "—"} GB`, numeric: mainVariant(device)?.storage_gb }))} />
