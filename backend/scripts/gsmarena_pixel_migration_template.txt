@@ -1,0 +1,124 @@
+"""Add exact-model GSMArena product galleries to current Google Pixel models.
+
+The Phone Discover operator confirmed permission to reuse GSMArena photos.
+No existing photos, PKR prices, phone identities, or RAM/storage variants
+are overwritten. Source gallery pages are saved for attribution.
+"""
+import csv
+import json
+import re
+from collections import defaultdict
+from pathlib import Path
+from urllib.parse import urlparse
+
+from django.db import migrations
+
+
+def norm(value):
+    return "".join(re.findall(r"[a-z0-9]+", value.casefold()))
+
+
+def good_image(url, name):
+    parsed = urlparse(url)
+    expected = "google-" + "-".join(name.casefold().split())
+    stem = Path(parsed.path).stem.casefold()
+    return (parsed.scheme == "https" and
+            parsed.hostname in {"fdn2.gsmarena.com", "fdn.gsmarena.com"} and
+            parsed.path.startswith("/vv/pics/google/") and
+            bool(re.fullmatch(re.escape(expected) + r"-(?:\d{1,3}|[a-z])", stem)) and
+            parsed.path.lower().endswith((".jpg", ".jpeg", ".png", ".webp")))
+
+
+def backfill_google_pixel_images(apps, schema_editor):
+    Device = apps.get_model("catalog", "Device")
+    Image = apps.get_model("catalog", "DeviceImage")
+    path = Path(__file__).resolve().parents[2] / "data" / "gsmarena_pixel_photos.csv"
+    if not path.is_file():
+        raise RuntimeError(f"Missing GSMArena Pixel image manifest: {path}")
+    with path.open(encoding="utf-8-sig", newline="") as f:
+        reader = csv.DictReader(f)
+        required = {"brand", "device", "gallery_page", "image_urls", "reuse_basis"}
+        if not required.issubset(reader.fieldnames or []):
+            raise RuntimeError("Invalid GSMArena image manifest columns")
+        records = list(reader)
+    if not records:
+        raise RuntimeError("GSMArena Pixel manifest contains no images; aborting")
+    seen = set()
+    gallery_owners = defaultdict(set)
+    for line, row in enumerate(records, 2):
+        name = row["device"].strip()
+        key = (row["brand"].strip().casefold(), name.casefold())
+        page = urlparse(row["gallery_page"].strip())
+        try:
+            photos = json.loads(row["image_urls"])
+        except (TypeError, ValueError) as e:
+            raise RuntimeError(f"Broken Pixel image data, row {line}") from e
+        if (key[0] != "google" or not name.casefold().startswith("pixel ") or
+                key in seen or row["reuse_basis"] != "operator_confirmed_gsmarena" or
+                page.scheme != "https" or page.hostname not in
+                {"www.gsmarena.com", "gsmarena.com"} or
+                not isinstance(photos, list) or not (1 <= len(photos) <= 6) or
+                len(photos) != len(set(photos)) or
+                not all(isinstance(url, str) and len(url) <= 1000 and
+                        good_image(url, name) for url in photos)):
+            raise RuntimeError(f"Unverified Google model/photo source on row {line}")
+        slug = "google_" + "_".join(name.casefold().split()) + "-pictures-"
+        if not Path(page.path).name.startswith(slug) or not page.path.endswith(".php"):
+            raise RuntimeError(f"Incorrect GSMArena gallery identity on row {line}")
+        seen.add(key)
+        row["_photos"] = photos
+        for url in photos:
+            gallery_owners[url].add(key)
+    unsafe_images = {url for url, keys in gallery_owners.items() if len(keys) > 1}
+    devices = {
+        (obj.brand.name.casefold(), obj.name.casefold()): obj
+        for obj in Device.objects.select_related("brand")
+        .filter(is_published=True, brand__name__iexact="Google")
+    }
+    existing = defaultdict(set)
+    for did, url in Image.objects.filter(device__brand__name__iexact="Google").values_list(
+            "device_id", "image_url"):
+        existing[did].add(url)
+    inserts = []
+    changes = []
+    source_models = 0
+    for row in records:
+        key = (row["brand"].strip().casefold(), row["device"].strip().casefold())
+        device = devices.get(key)
+        if device is None:
+            continue
+        source_models += 1
+        altered = False
+        for order, url in enumerate(row["_photos"]):
+            if url in unsafe_images or url in existing[device.pk]:
+                continue
+            first = not device.primary_image_url and not existing[device.pk]
+            inserts.append(Image(
+                device_id=device.pk, image_url=url,
+                is_primary=first, view="unspecified",
+                sort_order=10 + order,
+                alt_text=f"Google {device.name} product photo from GSMArena"[:200],
+            ))
+            existing[device.pk].add(url)
+            if first:
+                device.primary_image_url = url
+                altered = True
+        if altered:
+            specifications = dict(device.specifications or {})
+            specifications["photo_attribution"] = {
+                "source": row["gallery_page"],
+                "publisher": "GSMArena",
+                "reuse_basis": "permission confirmed by Phone Discover operator",
+            }
+            device.specifications = specifications
+            changes.append(device)
+    Image.objects.bulk_create(inserts, ignore_conflicts=True, batch_size=120)
+    Device.objects.bulk_update(changes, ["primary_image_url", "specifications"], batch_size=120)
+    print(f"GSMArena Pixel photo import: {source_models} exactly matched models; "
+          f"{len(inserts)} added gallery images, {len(changes)} new primary images. "
+          "Preserved existing Pixel photos, specifications, variants and prices.", flush=True)
+
+
+class Migration(migrations.Migration):
+    dependencies = [("catalog", "0012_import_cc_licensed_phone_photos")]
+    operations = [migrations.RunPython(backfill_google_pixel_images, migrations.RunPython.noop)]
