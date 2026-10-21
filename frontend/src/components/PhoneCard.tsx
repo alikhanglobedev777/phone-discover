@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Device } from "../types";
+import { representativeFinishHex } from "../lib/finishSwatch";
 
 type Props = {
   device: Device;
@@ -52,10 +53,10 @@ export function PhoneCard({ device, selected, onSelect, onOpen }: Props) {
         {colors.length > 0 && (
           <div className="phone-card-colors" aria-label="Documented phone colors">
             {colors.slice(0, 5).map((color) => (
-              <span key={color.id} className="phone-card-color" title={color.name}>
+              <span key={color.id} className="phone-card-color" title={color.hex_code ? color.name : `${color.name} (representative color, not exact shade)`}>
                 <span
-                  className={`phone-card-color-dot${color.hex_code ? "" : " no-color-hex"}`}
-                  style={color.hex_code ? { backgroundColor: color.hex_code } : undefined}
+                  className={`phone-card-color-dot${representativeFinishHex(color.name, color.hex_code) ? "" : " no-color-hex"}`}
+                  style={representativeFinishHex(color.name, color.hex_code) ? { backgroundColor: representativeFinishHex(color.name, color.hex_code) ?? undefined } : undefined}
                   aria-hidden="true"
                 />
                 <span>{color.name}</span>
