@@ -62,6 +62,9 @@ class DeviceViewSet(viewsets.ReadOnlyModelViewSet):
                 release_date__isnull=False,
                 release_date__lte=timezone.localdate(),
             )
+            # Featured homepage tiles require real model photos; phones without
+            # photography remain fully accessible in the complete catalog.
+            .exclude(primary_image_url="")
             .order_by("-release_date", "-id")[:8]
         )
         serializer = DeviceListSerializer(recent, many=True, context={"request": request})
