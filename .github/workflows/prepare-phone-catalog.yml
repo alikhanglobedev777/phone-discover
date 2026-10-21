@@ -27,6 +27,7 @@ jobs:
           cd phone-discover
           python backend/scripts/build_phone_csv.py ../techapi
           cp ../techapi/data/LICENSE.md backend/data/TECHAPI_LICENSE.md
+          git -C ../techapi rev-parse HEAD > backend/data/TECHAPI_UPSTREAM_COMMIT.txt
       - name: Show CSV size and brand/model coverage
         run: |
           cd phone-discover
@@ -60,4 +61,5 @@ jobs:
             phone-discover/backend/data/phones_release_date_conflicts.csv
             phone-discover/backend/data/phones_catalog_audit.csv
             phone-discover/backend/data/TECHAPI_LICENSE.md
+            phone-discover/backend/data/TECHAPI_UPSTREAM_COMMIT.txt
           if-no-files-found: error
