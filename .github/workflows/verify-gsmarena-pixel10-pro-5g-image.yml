@@ -1,0 +1,51 @@
+name: Verify Pixel 10 Pro 5G GSMArena images
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/verify-gsmarena-pixel10-pro-5g-image.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout latest main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+      - name: Test exact Pixel 10 Pro identities
+        run: |
+          python -m unittest discover -s backend/scripts -p 'test_probe_pixel10_pro_5g_images.py'
+          python -m py_compile backend/scripts/gsmarena_pixel10_pro_migration_template.txt
+      - name: Validate alternative 5G-named official images with actual JPEG bytes
+        run: |
+          python backend/scripts/probe_pixel10_pro_5g_images.py backend/data/phones_import_ready.csv --output backend/data/gsmarena_pixel10_pro_photos.csv
+      - name: Save validation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixel10-pro-gsmarena-candidate-images
+          path: backend/data/gsmarena_pixel10_pro_photos.csv
+          if-no-files-found: error
+      - name: Refuse unverified photos and prepare one-time migration
+        run: |
+          python - <<'PY'
+          import csv
+          with open('backend/data/gsmarena_pixel10_pro_photos.csv', newline='', encoding='utf-8') as f:
+              images = list(csv.DictReader(f))
+          if len(images) != 1:
+              raise SystemExit("No confirmed GSMArena Pixel 10 Pro product JPEGs, database unchanged.")
+          print("Confirmed GSMArena Pixel 10 Pro product photos")
+          PY
+          cp backend/scripts/gsmarena_pixel10_pro_migration_template.txt backend/catalog/migrations/0020_import_verified_pixel10_pro_gsmarena.py
+          python -m py_compile backend/catalog/migrations/0020_import_verified_pixel10_pro_gsmarena.py
+      - name: Commit validated media and migration together
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/data/gsmarena_pixel10_pro_photos.csv backend/catalog/migrations/0020_import_verified_pixel10_pro_gsmarena.py
+          git commit -m "Use verified GSMArena Pixel 10 Pro product images"
+          git push origin HEAD:main
