@@ -59,7 +59,7 @@ def create_csv(source_root, output=OUTPUT):
                     if not 2020 <= released.year <= today.year or released > today:
                         skipped["bad_release_date"] += 1
                         continue
-                    if (not name or len(name) > 180 or re.search(r"\\b(?:ipad|tablet|watch|smartwatch|feature phone)\\b", name, re.I) or not isinstance(sources, list) or not sources or not all(
+                    if (not name or len(name) > 180 or re.search(r"\b(?:ipad|tablet|watch|smartwatch|feature phone)\b", name, re.I) or not isinstance(sources, list) or not sources or not all(
                         isinstance(x, str) and x.startswith("https://") for x in sources
                     )):
                         skipped["identity_or_sources"] += 1
@@ -107,7 +107,7 @@ def create_csv(source_root, output=OUTPUT):
         report_path = Path(output).with_name("phones_release_date_conflicts.csv")
         report_path.parent.mkdir(parents=True, exist_ok=True)
         with report_path.open("w", encoding="utf-8", newline="") as report:
-            writer = csv.writer(report, lineterminator="\\n")
+            writer = csv.writer(report, lineterminator="\n")
             writer.writerow(["brand", "device", "conflicting_release_dates"])
             for (brand, name), conflicting_dates in sorted(conflicts.items()):
                 writer.writerow([brand, name, "; ".join(conflicting_dates)])
