@@ -32,9 +32,12 @@ def variants(record):
     storages = record.get("storage_options_gb") or ([record.get("storage_gb")] if record.get("storage_gb") else [])
     if not isinstance(storages, list):
         return []
-    return [(ram, storage) for storage in sorted(set(
-        n for raw in storages if (n := positive(raw, 4, 4096)) is not None
-    ))] if ram else []
+    valid_storages = set()
+    for raw in storages:
+        storage = positive(raw, 4, 4096)
+        if storage is not None:
+            valid_storages.add(storage)
+    return [(ram, storage) for storage in sorted(valid_storages)] if ram else []
 
 def create_csv(source_root, output=OUTPUT):
     source_root = Path(source_root)
