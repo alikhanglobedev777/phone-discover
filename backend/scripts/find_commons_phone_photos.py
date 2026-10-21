@@ -157,6 +157,6 @@ if __name__ == "__main__":
     parser.add_argument("--start", type=int, default=0)
     parser.add_argument("--limit", type=int, default=200)
     args = parser.parse_args()
-    if args.start < 0 or not 1 <= args.limit <= 500:
-        parser.error("start must be nonnegative, limit must be 1..500")
+    if args.start < 0 or not 1 <= args.limit <= 2500:
+        parser.error("start must be nonnegative, limit must be 1..2500")
     prepare(args.catalog_csv, args.output, args.start, args.limit)
