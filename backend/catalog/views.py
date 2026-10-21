@@ -46,6 +46,27 @@ class DeviceViewSet(viewsets.ReadOnlyModelViewSet):
             return DeviceDetailSerializer
         return DeviceListSerializer
 
+    @action(detail=False, methods=["get"], url_path="latest")
+    def latest(self, request):
+        """Latest actually released models, never null or future dates.
+
+        PostgreSQL sorts NULL dates first for descending order, so a separate
+        filtered query is needed instead of using the ordinary catalog page.
+        """
+        from django.utils import timezone
+
+        recent = (
+            self.get_queryset()
+            .filter(
+                status=Device.Status.AVAILABLE,
+                release_date__isnull=False,
+                release_date__lte=timezone.localdate(),
+            )
+            .order_by("-release_date", "-id")[:8]
+        )
+        serializer = DeviceListSerializer(recent, many=True, context={"request": request})
+        return Response(serializer.data)
+
     @action(detail=True, methods=["get"], url_path="pakistan-prices")
     def pakistan_prices(self, request, slug=None):
         """Public, evidence-filtered price guide for one published phone."""
