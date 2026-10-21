@@ -1,3 +1,4 @@
+from django.db.models import Case, IntegerField, Value, When
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, viewsets
 from rest_framework.permissions import AllowAny
@@ -27,6 +28,15 @@ class DeviceViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = (
         Device.objects.filter(is_published=True)
         .select_related("brand")
+        # Real product photos take priority over photo-pending cards.
+        # Explicit user sorting still works through OrderingFilter.
+        .annotate(
+            has_phone_photo=Case(
+                When(primary_image_url__gt="", then=Value(1)),
+                default=Value(0),
+                output_field=IntegerField(),
+            ),
+        )
         .prefetch_related(
             "variants__offers",
             "images",
@@ -39,7 +49,7 @@ class DeviceViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_class = DeviceFilter
     search_fields = ["name", "brand__name", "summary", "specification_sections__items__value"]
     ordering_fields = ["name", "release_date", "status"]
-    ordering = ["-release_date", "name"]
+    ordering = ["-has_phone_photo", "-release_date", "name"]
 
     def get_serializer_class(self):
         if self.action == "retrieve":
