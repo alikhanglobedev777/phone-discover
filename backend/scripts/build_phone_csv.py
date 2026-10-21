@@ -7,7 +7,7 @@ import csv
 import json
 import re
 import sys
-from collections import defaultdict
+from collections import defaultdict, Counter
 from datetime import date
 from pathlib import Path
 
@@ -50,7 +50,7 @@ def create_csv(source_root, output=OUTPUT):
     skipped = defaultdict(int)
     for brand_slug, brand in BRANDS.items():
         for year in range(2020, today.year + 1):
-            for path in sorted((base / brand_slug / str(year)).glob("*.json")):
+            for path in sorted((base / brand_slug / str(year)).rglob("*.json")):
                 try:
                     data = json.loads(path.read_text(encoding="utf-8"))
                     released = date.fromisoformat(str(data.get("release_date", "")))
@@ -59,16 +59,16 @@ def create_csv(source_root, output=OUTPUT):
                     if not 2020 <= released.year <= today.year or released > today:
                         skipped["bad_release_date"] += 1
                         continue
-                    if not name or len(name) > 180 or not isinstance(sources, list) or not sources or not all(
+                    if (not name or len(name) > 180 or re.search(r"\\b(?:ipad|tablet|watch|smartwatch|feature phone)\\b", name, re.I) or not isinstance(sources, list) or not sources or not all(
                         isinstance(x, str) and x.startswith("https://") for x in sources
-                    ):
+                    )):
                         skipped["identity_or_sources"] += 1
                         continue
                     # Keep the original manufacturer name, without inventing a Pakistan SKU.
                     if name.casefold().startswith(brand.casefold() + " "):
                         name = name[len(brand):].strip()
                     options = variants(data)
-                    if not options:
+                    if not options or any(storage < 16 for _, storage in options):
                         skipped["no_ram_storage"] += 1
                         continue
                     finishes = data.get("colors") or []
@@ -96,6 +96,31 @@ def create_csv(source_root, output=OUTPUT):
                             records[key] = row
                 except (ValueError, OSError, TypeError, json.JSONDecodeError):
                     skipped["unreadable"] += 1
+    # Keep every named model internally consistent. A 2020+ base model must
+    # not be assigned mutually contradictory release dates by a mixture of
+    # scraped regional or carrier entries. Quarantine it for human review.
+    dates = defaultdict(set)
+    for row in records.values():
+        dates[(row["brand"].casefold(), row["device"].casefold())].add(row["release_date"])
+    conflicts = {key: sorted(values) for key, values in dates.items() if len(values) > 1}
+    if conflicts:
+        report_path = Path(output).with_name("phones_release_date_conflicts.csv")
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        with report_path.open("w", encoding="utf-8", newline="") as report:
+            writer = csv.writer(report, lineterminator="\\n")
+            writer.writerow(["brand", "device", "conflicting_release_dates"])
+            for (brand, name), conflicting_dates in sorted(conflicts.items()):
+                writer.writerow([brand, name, "; ".join(conflicting_dates)])
+        records = {key: row for key, row in records.items()
+                   if (row["brand"].casefold(), row["device"].casefold()) not in conflicts}
+        print(f"Quarantined {len(conflicts)} models with conflicting release dates: {report_path}")
+    brands_found = Counter(row["brand"].casefold() for row in records.values())
+    absent_brands = sorted(set(BRANDS.values()) - set(
+        next((name for name in BRANDS.values() if name.casefold() == brand), brand)
+        for brand in brands_found
+    ))
+    if absent_brands:
+        raise RuntimeError(f"Missing required brands: {', '.join(absent_brands)}")
     output = Path(output)
     output.parent.mkdir(parents=True, exist_ok=True)
     with output.open("w", encoding="utf-8", newline="") as fh:
