@@ -45,7 +45,7 @@ export function LatestPhones({ phones, isLoading, isError, onRetry, onOpen }: Pr
         <div>
           <p className="eyebrow">Fresh from the catalog</p>
           <h2 id="latest-heading">The latest phones<span>.</span></h2>
-          <p className="latest-intro">Newly released models with documented dates. Availability can vary in Pakistan.</p>
+          <p className="latest-intro">Recent releases with product photos and recorded dates. Pakistan availability may vary.</p>
         </div>
         <a href="#catalog" className="latest-explore-link">Explore the full catalog <span aria-hidden="true">↗</span></a>
       </div>
