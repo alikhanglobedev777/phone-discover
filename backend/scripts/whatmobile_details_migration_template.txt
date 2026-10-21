@@ -208,5 +208,5 @@ def import_details(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-    dependencies = [("catalog", "0010_fill_xiaomi_13_pro_official_specs")]
+    dependencies = [("catalog", "0011_populate_existing_catalog_spec_sections")]
     operations = [migrations.RunPython(import_details, migrations.RunPython.noop)]
