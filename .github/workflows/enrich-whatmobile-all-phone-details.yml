@@ -1,0 +1,75 @@
+name: Enrich all matched phones with full WhatMobile details
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/enrich-whatmobile-all-phone-details.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: complete-whatmobile-detail-enrichment
+  cancel-in-progress: false
+jobs:
+  research:
+    name: Specifications and gallery shard ${{ matrix.shard }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2]
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Run exact-model parsing and gallery regression tests
+        run: |
+          python -m unittest discover -s backend/scripts -p 'test_collect_whatmobile_details.py'
+          python -m py_compile backend/scripts/merge_whatmobile_details.py
+      - name: Research phone specifications and explicitly linked real photo angles
+        run: |
+          mkdir -p shards
+          python backend/scripts/collect_whatmobile_details.py backend/data/phones_import_ready.csv --output shards/whatmobile_details_${{ matrix.shard }}.csv --start $(( ${{ matrix.shard }} * 750 )) --limit 750
+      - name: Upload exact-model source evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: whatmobile-details-${{ matrix.shard }}
+          path: shards/whatmobile_details_${{ matrix.shard }}.csv
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Validate and publish catalog-wide details
+    needs: research
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+      - name: Download three completed evidence shards
+        uses: actions/download-artifact@v4
+        with:
+          pattern: whatmobile-details-*
+          merge-multiple: true
+          path: shards
+      - name: Validate details and prepare additive database migration
+        run: |
+          python backend/scripts/merge_whatmobile_details.py shards --output backend/data/whatmobile_details.csv --min-models 100
+          cp backend/scripts/whatmobile_details_migration_template.txt backend/catalog/migrations/0011_import_whatmobile_details.py
+          python -m py_compile backend/catalog/migrations/0011_import_whatmobile_details.py
+      - name: Commit validated details and importer together for Render deployment
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/data/whatmobile_details.csv backend/catalog/migrations/0011_import_whatmobile_details.py
+          if git diff --cached --quiet; then
+            echo "No new WhatMobile details."
+          else
+            git commit -m "Enrich all matched phones with WhatMobile specifications and real photo angles"
+            git push origin HEAD:main
+          fi
