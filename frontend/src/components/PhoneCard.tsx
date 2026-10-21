@@ -45,11 +45,13 @@ export function PhoneCard({ device, selected, onSelect, onOpen }: Props) {
         </div>
         <h3>{device.name}</h3>
         {device.data_source === "web_research" && <p className="pk-evidence-note">Web researched · source-reported facts</p>}
-        <p className="card-summary">{device.summary}</p>
-        <div className="phone-chips">
-          {device.operating_system && <span>{device.operating_system}</span>}
-          {device.lowest_price?.country_code && <span>{device.lowest_price.country_code} offer</span>}
-        </div>
+        {device.summary?.trim() && <p className="card-summary">{device.summary}</p>}
+        {(device.operating_system || device.lowest_price?.country_code) && (
+          <div className="phone-chips">
+            {device.operating_system && <span>{device.operating_system}</span>}
+            {device.lowest_price?.country_code && <span>{device.lowest_price.country_code} offer</span>}
+          </div>
+        )}
         {colors.length > 0 && (
           <div className="phone-card-colors" aria-label="Documented phone colors">
             {colors.slice(0, 5).map((color) => (
