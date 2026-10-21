@@ -16,7 +16,7 @@ on:
         required: true
         default: 2500
 permissions:
-  contents: read
+  contents: write
 jobs:
   research:
     runs-on: ubuntu-latest
@@ -39,3 +39,12 @@ jobs:
           path: backend/data/retailer_image_candidates.csv
           if-no-files-found: error
           retention-days: 14
+      - name: Save non-publication source report in GitHub for color and image matching
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/data/retailer_image_candidates.csv
+          if ! git diff --cached --quiet; then
+            git commit -m "Record retailer product-photo candidates awaiting reuse approval"
+            git push origin HEAD:main
+          fi
