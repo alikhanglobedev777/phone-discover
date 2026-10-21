@@ -59,8 +59,8 @@ export function PhoneDetail({ device, onClose }: Props) {
                 />
               ) : (
                 <div className="detail-gallery-empty" role="status">
-                  <span aria-hidden="true">▣</span>
-                  <p>{selectedColor ? `No photos available for ${selectedColor.name}` : "Product photos are not available"}</p>
+                  <img src="/phone-photo-pending.svg" alt="Phone photo not yet verified" />
+                  <p>{selectedColor ? `No verified photos for ${selectedColor.name}` : "Product photo awaiting verification"}</p>
                 </div>
               )}
               {activePhoto && <span className="detail-view-badge">{viewLabel(activePhoto.view)}{activePhoto.color ? ` · ${device.colors?.find((color) => color.id === activePhoto.color)?.name ?? ""}` : ""}</span>}
