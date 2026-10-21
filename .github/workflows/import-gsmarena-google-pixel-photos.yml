@@ -42,13 +42,13 @@ jobs:
           if-no-files-found: error
       - name: Prepare additive one-time Django media migration
         run: |
-          cp backend/scripts/gsmarena_pixel_migration_template.txt backend/catalog/migrations/0015_import_gsmarena_pixel_photos.py
-          python -m py_compile backend/catalog/migrations/0015_import_gsmarena_pixel_photos.py
+          cp backend/scripts/gsmarena_pixel_migration_template.txt backend/catalog/migrations/0016_import_gsmarena_pixel_photos.py
+          python -m py_compile backend/catalog/migrations/0016_import_gsmarena_pixel_photos.py
       - name: Commit validated pixel image sources and migration for Render
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add backend/data/gsmarena_pixel_photos.csv backend/catalog/migrations/0015_import_gsmarena_pixel_photos.py
+          git add backend/data/gsmarena_pixel_photos.csv backend/catalog/migrations/0016_import_gsmarena_pixel_photos.py
           if git diff --cached --quiet; then
             echo "Pixel photo evidence already committed"
           else
