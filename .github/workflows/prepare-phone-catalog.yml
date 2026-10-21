@@ -1,8 +1,14 @@
 name: Prepare 2020+ smartphone CSV
 on:
   workflow_dispatch:
+    inputs:
+      ship_catalog:
+        description: 'Commit clean catalog CSV to main for one-time Render import'
+        type: boolean
+        required: true
+        default: true
 permissions:
-  contents: read
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -17,7 +23,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: GetTechAPI/TechAPI
-          ref: develop
+          ref: db1dea0c38ff07fcf400aa05d8c8e4393348eb25
           path: techapi
           sparse-checkout: |
             data/smartphone
@@ -28,6 +34,10 @@ jobs:
           python backend/scripts/build_phone_csv.py ../techapi
           cp ../techapi/data/LICENSE.md backend/data/TECHAPI_LICENSE.md
           git -C ../techapi rev-parse HEAD > backend/data/TECHAPI_UPSTREAM_COMMIT.txt
+      - name: Prepare conservative, conflict-tolerant import catalog
+        run: |
+          cd phone-discover
+          python backend/scripts/prepare_production_catalog.py backend/data/phones_2020_onward.csv backend/data/phones_release_date_conflicts.csv --output backend/data/phones_import_ready.csv
       - name: Show CSV size and brand/model coverage
         run: |
           cd phone-discover
@@ -60,6 +70,20 @@ jobs:
             phone-discover/backend/data/phones_2020_onward.csv
             phone-discover/backend/data/phones_release_date_conflicts.csv
             phone-discover/backend/data/phones_catalog_audit.csv
+            phone-discover/backend/data/phones_import_ready.csv
             phone-discover/backend/data/TECHAPI_LICENSE.md
             phone-discover/backend/data/TECHAPI_UPSTREAM_COMMIT.txt
           if-no-files-found: error
+      - name: Commit only the curated CSV for Render (manual opt-in)
+        if: ${{ inputs.ship_catalog }}
+        run: |
+          cd phone-discover
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/data/phones_import_ready.csv backend/data/TECHAPI_LICENSE.md backend/data/TECHAPI_UPSTREAM_COMMIT.txt
+          if git diff --cached --quiet; then
+            echo "Curated catalog unchanged."
+          else
+            git commit -m "Publish import-ready source-backed phone catalog for Render"
+            git push origin HEAD:main
+          fi
