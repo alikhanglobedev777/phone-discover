@@ -1,0 +1,248 @@
+/* Homepage merchandising: latest releases, browsable brand tabs, refined footer.
+   Loaded last so these improvements work with the existing Burgundy design. */
+
+/* Latest release strip, immediately after the hero. */
+.latest-section {
+  padding: 36px 0 42px;
+  border-top: 1px solid var(--wine-stroke, #ead5dc);
+  border-bottom: 1px solid var(--wine-stroke, #ead5dc);
+  scroll-margin-top: 20px;
+}
+.latest-heading-row {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+.latest-heading-row h2 {
+  margin: 10px 0 9px;
+  color: #171115;
+  font-size: clamp(31px, 4.1vw, 49px);
+  line-height: 1.08;
+  letter-spacing: -.06em;
+}
+.latest-heading-row h2 span { color: var(--wine, #76253f); }
+.latest-intro { max-width: 620px; margin: 0; color: #655b61; font-size: 13px; line-height: 1.6; }
+.latest-explore-link {
+  display: inline-flex;
+  gap: 11px;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 10px 15px;
+  color: var(--wine, #76253f);
+  border: 1px solid var(--wine-stroke, #e6ccd4);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.latest-explore-link:hover { border-color: var(--wine, #76253f); background: #fcf4f6; }
+.latest-phone-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 15px;
+}
+.latest-phone-tile {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid #e9dce0;
+  border-radius: 15px;
+  background: #fff;
+  color: #191518;
+  text-align: left;
+  box-shadow: 0 5px 17px rgba(81, 34, 51, .035);
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.latest-phone-tile:hover {
+  transform: translateY(-3px);
+  border-color: #be94a3;
+  box-shadow: 0 13px 30px rgba(81, 34, 51, .11);
+}
+.latest-phone-photo {
+  display: grid;
+  place-items: center;
+  height: 172px;
+  padding: 16px 28px;
+  overflow: hidden;
+  background: linear-gradient(145deg, #fcf9fa, #f6ecf0);
+}
+.latest-phone-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  mix-blend-mode: multiply;
+}
+.latest-phone-copy { display: grid; gap: 5px; padding: 15px 17px 14px; flex: 1; }
+.latest-phone-brand {
+  color: var(--wine, #76253f);
+  font-size: 10px;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: .09em;
+}
+.latest-phone-copy strong {
+  display: block;
+  color: #191518;
+  font-size: 17px;
+  line-height: 1.3;
+  letter-spacing: -.035em;
+  overflow-wrap: anywhere;
+}
+.latest-phone-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+  padding-top: 8px;
+  color: #62585d;
+  font-size: 11px;
+  font-weight: 650;
+}
+.latest-phone-bottom > span:last-child { color: var(--wine, #76253f); font-size: 18px; }
+.latest-source-note { margin: 13px 0 0; color: #766e72; font-size: 11px; }
+.latest-state {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 20px 16px;
+  border: 1px dashed #dcc2cb;
+  border-radius: 10px;
+  color: #665e62;
+  font-size: 13px;
+}
+.latest-state button { padding: 7px 12px; border: 1px solid #cda9b7; border-radius: 8px; background: #fff; color: var(--wine, #76253f); font-weight: 750; }
+.latest-state a { color: var(--wine, #76253f); font-weight: 750; text-decoration: underline; }
+
+/* Horizontal, accessible brand buttons. All brands is the default mixed view. */
+.brand-tabs-section { margin: 0 0 22px; }
+.brand-tabs-heading { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 11px; }
+.brand-tabs-heading span:first-child { font-size: 13px; font-weight: 850; color: #30272c; }
+.brand-tabs-heading span:last-child { font-size: 11px; color: #776d72; }
+.brand-tabs {
+  display: flex;
+  gap: 9px;
+  padding: 2px 1px 12px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #dfcbd2 transparent;
+  -webkit-overflow-scrolling: touch;
+}
+.brand-tab {
+  flex: 0 0 auto;
+  min-height: 42px;
+  border: 1px solid #ead8df;
+  border-radius: 11px;
+  padding: 10px 16px;
+  background: #fff;
+  color: #50424a;
+  font-size: 12px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+.brand-tab span { margin-left: 4px; }
+.brand-tab:hover { border-color: var(--wine, #76253f); color: var(--wine, #76253f); }
+.brand-tab.brand-tab-active {
+  border-color: var(--wine, #76253f);
+  background: var(--wine, #76253f);
+  color: #fff;
+  box-shadow: 0 6px 14px rgba(118,37,63,.16);
+}
+
+/* Close the journey with a content-rich but focused footer. */
+.site-footer.site-footer-new {
+  display: block;
+  margin: 0 0 8px;
+  padding: clamp(28px, 4.5vw, 52px);
+  border: 1px solid #502237;
+  border-radius: 23px;
+  background: linear-gradient(135deg, #271923, #471f32 92%);
+  color: #fff;
+}
+.footer-main { display: grid; grid-template-columns: minmax(0, 1.8fr) repeat(2, minmax(130px, .8fr)); gap: 36px 45px; }
+.footer-brand-lockup { display: inline-flex; align-items: center; gap: 11px; font-size: 24px; font-weight: 750; letter-spacing: -.055em; color: #fff; }
+.footer-brand-lockup strong { font-weight: 430; }
+.footer-brand-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 39px;
+  height: 39px;
+  border-radius: 11px;
+  background: #fff;
+  color: #76253f;
+  font-weight: 900;
+  font-size: 23px;
+  letter-spacing: -.08em;
+}
+.footer-brand-icon span { color: #b44b70; }
+.site-footer-new .footer-about p {
+  max-width: 440px;
+  margin: 17px 0 18px;
+  color: #dccbd3;
+  font-size: 13px;
+  line-height: 1.8;
+}
+.footer-discover-link { display: inline-flex; align-items: center; gap: 12px; color: #fff; font-size: 12px; font-weight: 750; text-decoration: underline; text-underline-offset: 5px; }
+.footer-link-column { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.footer-link-column h3 { margin: 8px 0 5px; color: #e9afc1; font-size: 11px; font-weight: 850; letter-spacing: .11em; text-transform: uppercase; }
+.footer-link-column a,
+.footer-link-column button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #f4eaf0;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+}
+.footer-link-column a:hover,
+.footer-link-column button:hover { color: #fff; text-decoration: underline; text-underline-offset: 4px; }
+.footer-trust-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  margin: 33px 0 0;
+  padding: 18px 0;
+  border-top: 1px solid rgba(255,255,255,.17);
+  border-bottom: 1px solid rgba(255,255,255,.17);
+}
+.footer-trust-strip > span { color: #e2cdd7; font-size: 11px; }
+.footer-trust-strip i { margin-right: 6px; color: #ffc7d9; font-size: 12px; font-style: normal; font-weight: 800; }
+.footer-bottom { display: flex; justify-content: space-between; gap: 24px; align-items: start; padding-top: 21px; }
+.footer-bottom > span { flex: 0 0 auto; color: #fff; font-size: 11px; font-weight: 750; }
+.site-footer.site-footer-new .footer-bottom p { max-width: 630px; margin: 0; color: #cbb7c1; font-size: 10px; line-height: 1.7; text-align: right; }
+
+@media (max-width: 960px) {
+  .latest-phone-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .footer-main { grid-template-columns: minmax(0, 1.5fr) minmax(110px,1fr); }
+  .footer-about { grid-column: 1 / -1; }
+}
+@media (max-width: 620px) {
+  .latest-section { padding: 30px 0; }
+  .latest-heading-row { flex-direction: column; align-items: flex-start; gap: 17px; }
+  .latest-heading-row h2 { font-size: 34px; }
+  .latest-phone-grid { gap: 10px; }
+  .latest-phone-photo { height: 140px; padding: 13px 15px; }
+  .latest-phone-copy { padding: 13px; }
+  .latest-phone-copy strong { font-size: 15px; }
+  .latest-explore-link { min-height: 38px; }
+  .brand-tabs-heading span:last-child { display: none; }
+  .brand-tab { min-height: 39px; padding: 9px 14px; }
+  .site-footer.site-footer-new { padding: 27px 23px; border-radius: 18px; }
+  .footer-main { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 23px 18px; }
+  .footer-about { grid-column: 1 / -1; }
+  .footer-brand-lockup { font-size: 22px; }
+  .footer-bottom { flex-direction: column; gap: 10px; }
+  .site-footer.site-footer-new .footer-bottom p { text-align: left; }
+}
+@media (max-width: 360px) {
+  .latest-phone-grid { grid-template-columns: 1fr; }
+  .latest-phone-photo { height: 174px; }
+}
