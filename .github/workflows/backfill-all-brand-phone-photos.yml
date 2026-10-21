@@ -1,0 +1,85 @@
+name: Backfill verified product images across all phone brands
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/backfill-all-brand-phone-photos.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: catalog-wide-verified-phone-photos
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    name: Images ${{ matrix.brand }} part ${{ matrix.part }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 115
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        brand: [Apple, Google, Infinix, Itel, Motorola, Oppo, Samsung, Tecno, Vivo, Xiaomi]
+        part: [0, 1]
+    steps:
+      - name: Checkout full curated production catalog
+        uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Test strict phone model to image filename mapping
+        run: |
+          python -m unittest discover -s backend/scripts -p 'test_discover_missing_brand_images.py'
+          python -m py_compile backend/scripts/discover_missing_brand_images.py backend/scripts/merge_verified_brand_images.py
+      - name: Validate actual published professional JPEG data for missing brand models
+        run: |
+          mkdir -p shards
+          brand=${{ matrix.brand }}
+          brand_lower=$(echo "$brand" | tr '[:upper:]' '[:lower:]')
+          python backend/scripts/discover_missing_brand_images.py backend/data/phones_import_ready.csv --brand "$brand" --part ${{ matrix.part }} --parts 2 --output "shards/$brand_lower-${{ matrix.part }}.csv"
+      - name: Upload exact-model JPEG evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-phone-media-${{ matrix.brand }}-${{ matrix.part }}
+          path: shards/*.csv
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Validate all photo matches and add missing media without overwriting
+    needs: discover
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout latest main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+      - name: Download all 20 verified brand manifests
+        uses: actions/download-artifact@v4
+        with:
+          pattern: verified-phone-media-*
+          merge-multiple: true
+          path: shards
+      - name: Reject guessed photo URLs and ambiguous cross-model pictures
+        run: |
+          python -m unittest discover -s backend/scripts -p 'test_discover_missing_brand_images.py'
+          python backend/scripts/merge_verified_brand_images.py shards backend/data/phones_import_ready.csv --parts 2 --output backend/data/verified_brand_photos.csv --min-images 1
+      - name: Prepare one-time additive migration and validate syntax
+        run: |
+          test -f backend/catalog/migrations/0024_fill_pixel_5a_and_5a_5g_official_images.py
+          cp backend/scripts/brand_photo_migration_template.txt backend/catalog/migrations/0025_backfill_verified_all_brand_images.py
+          python -m py_compile backend/catalog/migrations/0025_backfill_verified_all_brand_images.py
+      - name: Publish validated image manifest and database migration together
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/data/verified_brand_photos.csv backend/catalog/migrations/0025_backfill_verified_all_brand_images.py
+          if git diff --cached --quiet; then
+            echo "Verified image manifest and migration already committed."
+          else
+            git commit -m "Fill missing Infinix Motorola and other brand photos from verified image sources"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
