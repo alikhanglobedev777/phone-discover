@@ -1,13 +1,13 @@
-"""Validate and combine sharded WhatMobile image reports before production import.
+"""Merge completed WhatMobile scan shards into one conservative import manifest.
 
-Usage:
- python backend/scripts/merge_whatmobile_media.py shards/ \
-     --output backend/data/whatmobile_media.csv --min-photos 5
-Fails closed: duplicates, unauthorised publishers, invalid URLs, or too few
-working image references do not create a migration or change production data.
+Only source-validated records with an exact case-insensitive identity are kept.
+Aliases differing only by capitalization are deduplicated if they agree about
+the product photo AND documented colors. No two different models may reuse
+the same WhatMobile photo. Ambiguous identities/images are quarantined.
 """
 import argparse
 import csv
+from collections import defaultdict
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -27,35 +27,64 @@ def validate_url(url, photo=False):
 
 
 def merge(shard_dir, output, min_photos=5, expected_shards=3):
-    input_files = sorted(Path(shard_dir).glob("whatmobile_media_*.csv"))
-    if len(input_files) != expected_shards:
-        raise ValueError(f"Expected {expected_shards} shard files; found {len(input_files)}")
-    found = []
-    seen = set()
+    shard_dir = Path(shard_dir)
+    input_files = [shard_dir / f"whatmobile_media_{i}.csv"
+                   for i in range(expected_shards)]
+    if any(not f.is_file() for f in input_files):
+        raise ValueError(f"Expected shards 0..{expected_shards - 1} in {shard_dir}")
+
+    variants = defaultdict(list)
+    raw_count = 0
     for file in input_files:
         with file.open(encoding="utf-8-sig", newline="") as handle:
             reader = csv.DictReader(handle)
             if not set(FIELDS).issubset(reader.fieldnames or []):
                 raise ValueError(f"Missing columns in {file}")
-            for number, row in enumerate(reader, start=2):
+            for line, row in enumerate(reader, start=2):
                 brand, name = row["brand"].strip(), row["device"].strip()
-                key = (brand.casefold(), name.casefold())
-                if (not brand or not name or key in seen or
+                if (not brand or not name or
                     row["source"] != "WhatMobile" or
                     row["review_status"] != RIGHTS or
                     not validate_url(row["product_page"]) or
                     not validate_url(row["image_url"], photo=True)):
-                    raise ValueError(f"Invalid/duplicate model-source evidence {file}:{number}")
+                    raise ValueError(f"Invalid publisher/photo evidence {file}:{line}")
                 colors = [v.strip() for v in row["colors"].split(",") if v.strip()]
                 if len(colors) > 12 or any(len(v) > 80 for v in colors):
-                    raise ValueError(f"Invalid color data {file}:{number}")
-                seen.add(key)
-                found.append({field: row[field] for field in FIELDS})
+                    raise ValueError(f"Invalid documented colors {file}:{line}")
+                key = (brand.casefold(), name.casefold())
+                variants[key].append((row, tuple(colors)))
+                raw_count += 1
+
+    winners = {}
+    ambiguous_identity = set()
+    capitalization_duplicates = 0
+    for key, items in variants.items():
+        photo_urls = {row["image_url"] for row, _ in items}
+        normalized_colors = {tuple(c.casefold() for c in colors)
+                             for _, colors in items}
+        if len(photo_urls) > 1 or len(normalized_colors) > 1:
+            ambiguous_identity.add(key)
+            continue
+        capitalization_duplicates += len(items) - 1
+        # Stable selection; never arbitrarily choose between disagreeing photos.
+        row = min((row for row, _ in items),
+                  key=lambda record: (record["device"], record["product_page"]))
+        winners[key] = {field: row[field] for field in FIELDS}
+
+    photo_owners = defaultdict(set)
+    for key, row in winners.items():
+        photo_owners[row["image_url"]].add(key)
+    shared_images = {url for url, keys in photo_owners.items()
+                     if len(keys) > 1}
+    # Two separate identities claiming the same image can mean the publisher
+    # reused the wrong file (Pro versus base, Plus, etc). Exclude all owners.
+    found = [row for key, row in winners.items()
+             if row["image_url"] not in shared_images]
 
     if len(found) < min_photos:
         raise RuntimeError(
-            f"Only {len(found)} accessible exact-model images found. "
-            "Cannot publish bulk media import; inspect crawler/robots/HTTP errors."
+            f"Only {len(found)} unambiguous WhatMobile images found. "
+            "Cannot publish an image migration."
         )
     out = Path(output)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -64,7 +93,14 @@ def merge(shard_dir, output, min_photos=5, expected_shards=3):
         writer.writeheader()
         writer.writerows(sorted(found, key=lambda x: (x["brand"].casefold(),
                                                       x["device"].casefold())))
-    print(f"Verified manifest for {len(found)} unique WhatMobile phone models: {out}", flush=True)
+    print(
+        f"WhatMobile: {raw_count} source rows, {len(variants)} distinct names, "
+        f"{capitalization_duplicates} identical case aliases collapsed, "
+        f"{len(ambiguous_identity)} contradictory identities removed, "
+        f"{len(shared_images)} images reused for different phone models removed, "
+        f"{len(found)} final exact-model photo records.",
+        flush=True,
+    )
     return found
 
 
