@@ -84,7 +84,7 @@ h1 span { color: var(--wine); font-weight: 570; }
 .filter-panel input:focus, .filter-panel select:focus, .pk-market-filter :is(input, select):focus { border-color: var(--wine); box-shadow: 0 0 0 3px rgba(118,37,63,.10); }
 .filter-reset, .catalog-filter-note a { color: var(--wine); }
 .pk-market-disclaimer { font-size: 12px; }
-.phone-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+.phone-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: start; gap: 18px; }
 .phone-card, .pk-market-card {
   position: relative;
   border: 1px solid #e8dce1;
@@ -131,16 +131,16 @@ h1 span { color: var(--wine); font-weight: 570; }
   position: relative;
   z-index: 1;
   display: flex;
-  flex: 1;
+  flex: 0 0 auto;
   flex-direction: column;
   min-width: 0;
   padding: 17px;
   background: #fff;
 }
-.phone-card h3 { font-size: 18px; line-height: 1.25; min-height: 45px; }
-.phone-card .card-summary { font-size: 12px; line-height: 1.55; overflow-wrap: anywhere; }
-.phone-card .phone-chips { margin-top: auto; padding-top: 14px; }
-.phone-card .card-footer { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 9px; margin-top: 15px; }
+.phone-card h3 { font-size: 18px; line-height: 1.25; min-height: 0; margin-bottom: 8px; }
+.phone-card .card-summary { min-height: 0; margin: 0 0 8px; font-size: 12px; line-height: 1.55; overflow-wrap: anywhere; }
+.phone-card .phone-chips { min-height: 0; margin-top: 6px; padding-top: 0; }
+.phone-card .card-footer { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 9px; margin-top: 12px; }
 .phone-card .price-block { min-width: 0; }
 .phone-card .price-block strong { overflow-wrap: anywhere; }
 .status-badge { color: var(--wine); background: #fff; border-color: #edd4dd; }
@@ -516,3 +516,6 @@ h1 { margin: 16px 0 18px; font-size: clamp(44px, 4.8vw, 69px); }
 @media (prefers-reduced-motion: reduce) {
   .chat-drawer .assistant-preferences .preferences-chevron { transition: none; }
 }
+
+/* Keep each handset card content-sized: no artificial gap above price/details. */
+.phone-card .phone-card-colors { margin: 8px 0 0; min-height: 0; }
