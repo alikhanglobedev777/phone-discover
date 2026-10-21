@@ -186,6 +186,22 @@ export default function App() {
             <a className="hero-secondary" href="#market">Browse PKR prices <span aria-hidden="true">→</span></a>
             <button className="hero-secondary hero-compare" type="button" onClick={openComparison}>Compare phones <span aria-hidden="true">↗</span></button>
           </div>
+          <form className="hero-local-search" role="search" aria-label="Search the local Phone Discover catalog"
+            onSubmit={(event) => {
+              event.preventDefault();
+              document.getElementById("catalog")?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}>
+            <label htmlFor="hero-phone-search">Search our phone catalog</label>
+            <div className="hero-local-search-row">
+              <span className="hero-search-icon" aria-hidden="true">⌕</span>
+              <input id="hero-phone-search" type="search" autoComplete="off"
+                value={filters.search}
+                onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))}
+                placeholder="Search Pixel, iPhone, Samsung, Redmi…"/>
+              <button type="submit">Search phones <span aria-hidden="true">→</span></button>
+            </div>
+            <span className="hero-local-search-note">Searches the phones in our own catalog — no external search engine.</span>
+          </form>
           <p className="hero-smallprint">Explore freely · Compare up to three phones · Price evidence clearly labeled</p>
         </div>
         <div className="hero-visual" aria-label="How Phone Discover helps you decide">
