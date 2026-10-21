@@ -1,0 +1,54 @@
+name: Recover licensed photos for still-missing phone images
+on:
+  workflow_run:
+    workflows: ["Enrich all matched phones with full WhatMobile details"]
+    types: [completed]
+permissions:
+  actions: read
+  contents: write
+jobs:
+  recover:
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout latest main with finished technical detail import
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+      - name: Fetch previously verified exact-model Wikimedia images
+        uses: actions/download-artifact@v4
+        with:
+          repository: alikhanglobedev777/phone-discover
+          run-id: 39640524254
+          name: licensed-phone-photo-manifest
+          github-token: ${{ github.token }}
+          path: recovered
+      - name: Validate and prepare the independent CC/PD image source manifest
+        run: |
+          test -f backend/catalog/migrations/0011_import_whatmobile_details.py
+          test -f recovered/commons_phone_photos.csv
+          python - <<'PY'
+          import csv
+          from pathlib import Path
+          with Path('recovered/commons_phone_photos.csv').open(encoding='utf-8-sig', newline='') as f:
+              rows = list(csv.DictReader(f))
+          if len(rows) < 15:
+              raise SystemExit('Too few Wikimedia-licensed photo records')
+          print(f'Source evidence: {len(rows)} licensed Wikimedia photos')
+          PY
+          cp recovered/commons_phone_photos.csv backend/data/commons_phone_photos.csv
+          cp backend/scripts/commons_recovery_migration_template.txt backend/catalog/migrations/0012_import_cc_licensed_phone_photos.py
+          python -m py_compile backend/catalog/migrations/0012_import_cc_licensed_phone_photos.py
+      - name: Commit Wikimedia licensed image backfill without overwriting existing photos
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/data/commons_phone_photos.csv backend/catalog/migrations/0012_import_cc_licensed_phone_photos.py
+          if git diff --cached --quiet; then
+            echo "Licensed-photo backfill already recorded."
+          else
+            git commit -m "Backfill remaining exact-model CC-licensed Wikimedia phone photos"
+            git push origin HEAD:main
+          fi
