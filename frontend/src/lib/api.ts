@@ -16,6 +16,10 @@ export function getDevices(filters: DeviceFilters, page = 1) {
   return request<Paginated<Device>>(`/api/catalog/devices/?${query.toString()}`);
 }
 
+export function getLatestDevices() {
+  return request<Device[]>("/api/catalog/devices/latest/");
+}
+
 export function getDevice(slug: string) {
   return request<Device>(`/api/catalog/devices/${encodeURIComponent(slug)}/`);
 }
