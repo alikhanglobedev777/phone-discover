@@ -13,13 +13,14 @@ from pathlib import Path
 
 MEMORY = re.compile(r"\s+\d{2,4}\s*GB$", re.I)
 NON_PHONE = re.compile(r"\b(?:ipad|tablet|smartwatch|watch|galaxy tab)\b", re.I)
-REGION = re.compile(r"\b(?:verizon|at&t|t-mobile|vodafone|docomo|softbank|china version|global version|international version|unlocked|carrier)\b", re.I)
+REGION = re.compile(r"\b(?:verizon|at&t|t-mobile|vodafone|docomo|softbank|china version|global version|international version|unlocked|carrier|td[ -]lte|dual[ -]sim|(?:standard|premium) edition)\b", re.I)
 
 
 def audit(path):
     findings = []
     groups = defaultdict(list)
     exact = defaultdict(list)
+    apple_storage = defaultdict(list)
     brands = Counter()
     with Path(path).open(encoding="utf-8-sig", newline="") as handle:
         reader = csv.DictReader(handle)
@@ -32,6 +33,9 @@ def audit(path):
             base = MEMORY.sub("", name).strip().casefold()
             groups[(brand.casefold(), base)].append((line, name))
             exact[(brand.casefold(), name.casefold(), row["ram_gb"], row["storage_gb"])].append(line)
+            if brand.casefold() == "apple" and name.casefold().startswith("iphone "):
+                apple_storage[(name.casefold(), row["storage_gb"])].append(
+                    (line, brand, name, row["ram_gb"], row.get("upstream_path", "")))
 
             def flag(code, detail):
                 findings.append((code, line, brand, name, detail, row.get("upstream_path", "")))
@@ -71,6 +75,18 @@ def audit(path):
             line, name = min(members)
             findings.append(("REVIEW_POSSIBLE_SAME_MODEL", line, brand, name,
                              "Candidate base: " + base + "; names: " + " | ".join(names[:12]), ""))
+    # A matching iPhone name and storage tier with different reported RAM
+    # values needs source review; never guess a correct variant or mutate data.
+    for (_, storage), members in sorted(apple_storage.items()):
+        ram_values = sorted({member[3] for member in members})
+        if len(ram_values) > 1:
+            line, brand, name, _, path = min(members)
+            provenance = "; ".join(
+                f"line {item[0]} RAM={item[3]} path={item[4]}" for item in members[:12])
+            findings.append(("REVIEW_APPLE_RAM_DISAGREEMENT", line, brand, name,
+                             f"{storage}GB storage reported with RAM: "
+                             + ", ".join(ram_values) + "GB; candidate rows: " + provenance,
+                             path))
     for key, lines in exact.items():
         if len(lines) > 1:
             findings.append(("DUPLICATE_EXACT_VARIANT", lines[0], key[0], key[1],
