@@ -1,5 +1,9 @@
 name: Discover licensed product photos
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/enrich-phone-photos.yml'
   workflow_dispatch:
     inputs:
       start:
@@ -33,7 +37,7 @@ jobs:
         run: python -m unittest discover -s backend/scripts -p 'test_find_commons_phone_photos.py'
       - name: Research exact-model, freely licensed product photography
         run: |
-          python backend/scripts/find_commons_phone_photos.py backend/data/phones_import_ready.csv --output backend/data/commons_phone_photos.csv --start ${{ inputs.start }} --limit ${{ inputs.limit }}
+          python backend/scripts/find_commons_phone_photos.py backend/data/phones_import_ready.csv --output backend/data/commons_phone_photos.csv --start ${{ inputs.start || 0 }} --limit ${{ inputs.limit || 2500 }}
       - name: Upload found photos with provenance
         uses: actions/upload-artifact@v4
         with:
@@ -41,7 +45,7 @@ jobs:
           path: backend/data/commons_phone_photos.csv
           if-no-files-found: error
       - name: Commit verified-photo manifest, no database changes
-        if: ${{ inputs.commit_manifest }}
+        if: ${{ github.event_name == 'push' || inputs.commit_manifest }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
