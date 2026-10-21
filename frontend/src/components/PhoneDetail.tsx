@@ -24,6 +24,8 @@ export function PhoneDetail({ device, onClose }: Props) {
   const activePhoto = visiblePhotos.find((photo) => photo.key === activePhotoKey) ?? visiblePhotos[0];
   const activeIndex = visiblePhotos.findIndex((photo) => photo.key === activePhoto?.key);
   const selectedColor = device.colors?.find((color) => color.id === colorId);
+  const attribution = device.specifications?.photo_attribution as
+    | { source?: string; license?: string; credit?: string } | undefined;
 
   useEffect(() => {
     setVariantId(device.variants?.[0]?.id ?? null);
@@ -109,6 +111,12 @@ export function PhoneDetail({ device, onClose }: Props) {
               </div>
             )}
             {!device.colors?.length && <p className="detail-image-note">More angles and colors will appear when product photography is available.</p>}
+            {attribution?.source?.startsWith("https://commons.wikimedia.org/") && (
+              <p className="detail-image-note">
+                Image: {attribution.credit ?? "Wikimedia Commons contributor"} · {attribution.license ?? "Source license"} ·{" "}
+                <a href={attribution.source} target="_blank" rel="noreferrer">View source &amp; attribution ↗</a>
+              </p>
+            )}
           </div>
           <div className="detail-intro">
             <div className="detail-badges">
