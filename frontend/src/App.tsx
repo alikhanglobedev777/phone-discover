@@ -5,6 +5,9 @@ import { CatalogFilters } from "./components/CatalogFilters";
 import { ComparisonPage } from "./components/ComparisonPage";
 import { ComparisonTray } from "./components/ComparisonTray";
 import { PhoneCard } from "./components/PhoneCard";
+import { LatestPhones } from "./components/LatestPhones";
+import { BrandTabs } from "./components/BrandTabs";
+import { SiteFooter } from "./components/SiteFooter";
 import { PakistanMarket } from "./components/PakistanMarket";
 import { PhoneDetail } from "./components/PhoneDetail";
 import { AssistantDrawer } from "./components/AssistantDrawer";
@@ -66,6 +69,13 @@ export default function App() {
     getNextPageParam: (lastPage, allPages) => lastPage.next ? allPages.length + 1 : undefined,
   });
   const brandsQuery = useQuery({ queryKey: ["brands"], queryFn: getBrands });
+  // Separate from user-selected catalog filters: always shows most recently
+  // released available phones, even when browsing an older or different brand.
+  const latestQuery = useQuery({
+    queryKey: ["latest-available-phones"],
+    queryFn: () => getDevices({ ...EMPTY_FILTERS, status: "available" }, 1),
+    staleTime: 5 * 60_000,
+  });
   const activeQuery = useQuery({
     queryKey: ["device", activeSlug],
     queryFn: () => getDevice(activeSlug!),
@@ -149,6 +159,7 @@ export default function App() {
       <nav className="nav" aria-label="Main navigation">
         <a className="brand-mark" href="#top" aria-label="Phone Discover home"><span className="brand-symbol" aria-hidden="true">P.</span><span>phone<span className="brand-light">discover</span><small>FIND YOUR NEXT PHONE</small></span></a>
         <div className="nav-actions">
+          <a className="nav-link" href="#latest">Latest phones</a>
           <a className="nav-link" href="#catalog">Explore phones</a>
           <button type="button" className="nav-link nav-compare-link" onClick={openComparison}>Compare phones</button>
           <a className="nav-link" href="#market">Pakistan prices</a>
@@ -187,6 +198,13 @@ export default function App() {
           <div className="hero-visual-bottom"><span>Explore</span><span>Compare</span><span>Choose</span></div>
         </div>
       </section>
+      <LatestPhones
+        phones={latestQuery.data?.results ?? []}
+        isLoading={latestQuery.isPending}
+        isError={latestQuery.isError}
+        onRetry={() => void latestQuery.refetch()}
+        onOpen={setActiveSlug}
+      />
       <section className="catalog-section" id="catalog" aria-labelledby="catalog-heading">
         <div className="section-heading">
           <div>
@@ -197,6 +215,11 @@ export default function App() {
           <span className="catalog-counter">{deviceCount.toLocaleString("en-PK")} phones in catalog</span>
         </div>
         {brandsQuery.isError && <div className="brand-filter-error" role="status">Brand options aren't available right now. <button type="button" className="retry-button" onClick={() => void brandsQuery.refetch()}>Retry brands</button></div>}
+        <BrandTabs
+          brands={brandsQuery.data?.results ?? []}
+          activeBrand={filters.brand}
+          onSelect={(brand) => setFilters((current) => ({ ...current, brand }))}
+        />
         <CatalogFilters
           brands={brandsQuery.data?.results ?? []}
           filters={filters}
@@ -239,7 +262,7 @@ export default function App() {
       </section>
       <PakistanMarket onOpenDevice={setActiveSlug} onCompareDevice={addComparison}
         onResearchWeb={(marketFilters) => setMarketResearchRequest((previous) => ({ id: (previous?.id ?? 0) + 1, filters: marketFilters }))} />
-      <footer className="site-footer"><div><a className="footer-brand" href="#top">phone<span>discover</span>.</a><p>Know your options. Choose on your terms.</p></div><div className="footer-links"><a href="#catalog">Explore phones</a><a href="#market">Pakistan prices</a><a href="#catalog">Phone catalog</a><a href="/admin/">Admin</a></div><p className="footer-note">PKR market prices are observed asking prices, not guaranteed offers. Reference catalog offers may use other currencies. Verify condition, PTA status and sellers independently.</p></footer>
+      <SiteFooter onCompare={openComparison} />
       </>}
       <AssistantDrawer
         marketResearchRequest={marketResearchRequest}
