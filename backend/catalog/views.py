@@ -30,6 +30,7 @@ class DeviceViewSet(viewsets.ReadOnlyModelViewSet):
         .prefetch_related(
             "variants__offers",
             "images",
+            "colors",
             "specification_sections__items",
         )
     )
