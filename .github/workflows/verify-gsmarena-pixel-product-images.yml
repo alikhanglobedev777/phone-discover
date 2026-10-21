@@ -1,0 +1,55 @@
+name: Verify and import exact Google Pixel GSMArena product images
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/verify-gsmarena-pixel-product-images.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: gsmarena-pixel-cdn-validation
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout main with user-approved photo import logic
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+      - name: Test Pixel model isolation
+        run: |
+          python -m unittest discover -s backend/scripts -p 'test_probe_pixel_product_images.py'
+          python -m py_compile backend/scripts/gsmarena_verified_pixel_migration_template.txt
+      - name: Verify actual GSMArena JPEG data for each exact Pixel model
+        run: |
+          python backend/scripts/probe_pixel_product_images.py backend/data/phones_import_ready.csv --output backend/data/gsmarena_verified_pixel_images.csv
+      - name: Save research results even if GSMArena image CDN is blocked
+        uses: actions/upload-artifact@v4
+        with:
+          name: validated-gsmarena-pixel-photo-candidates
+          path: backend/data/gsmarena_verified_pixel_images.csv
+          retention-days: 14
+          if-no-files-found: error
+      - name: Require actual JPEG image validation before any production import
+        run: |
+          python - <<'PY'
+          import csv
+          with open("backend/data/gsmarena_verified_pixel_images.csv", encoding="utf-8-sig") as f:
+              records = list(csv.DictReader(f))
+          if not records:
+              raise SystemExit("No real GSMArena CDN images could be validated; no production images will be modified.")
+          print(f"Verified actual JPEG bytes for {len(records)} uniquely named Pixel models.")
+          PY
+          cp backend/scripts/gsmarena_verified_pixel_migration_template.txt backend/catalog/migrations/0019_import_verified_gsmarena_pixel_images.py
+          python -m py_compile backend/catalog/migrations/0019_import_verified_gsmarena_pixel_images.py
+      - name: Commit verified GSM Arena photos and matching Django migration together
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/data/gsmarena_verified_pixel_images.csv backend/catalog/migrations/0019_import_verified_gsmarena_pixel_images.py
+          git commit -m "Import exact model verified GSMArena Pixel product photos"
+          git push origin HEAD:main
