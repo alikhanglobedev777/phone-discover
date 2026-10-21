@@ -246,3 +246,58 @@
   .latest-phone-grid { grid-template-columns: 1fr; }
   .latest-phone-photo { height: 174px; }
 }
+
+
+/* Always fit the ENTIRE handset photo inside the Latest tile.
+   Absolutely positioned img avoids grid intrinsic-size overflow/cropping. */
+.latest-phone-photo { position: relative; display: block; height: 247px; flex: 0 0 247px; padding: 0; overflow: hidden; }
+.latest-phone-photo img {
+  position: absolute;
+  top: 18px; left: 18px;
+  display: block;
+  width: calc(100% - 36px);
+  height: calc(100% - 36px);
+  max-height: none;
+  max-width: none;
+  object-fit: contain;
+  object-position: center center;
+  mix-blend-mode: multiply;
+}
+.hero-local-search { display: grid; gap: 8px; max-width: 615px; margin: 25px 0 20px; }
+.hero-local-search > label { color: #332831; font-size: 12px; font-weight: 800; }
+.hero-local-search-row {
+  display: flex; align-items: center; gap: 10px;
+  min-height: 58px; padding: 6px 6px 6px 17px;
+  border: 1px solid #d9b4c1; border-radius: 14px; background: #fff;
+  box-shadow: 0 9px 24px rgba(88,27,48,.09);
+}
+.hero-local-search-row:focus-within { border-color: var(--wine, #76253f); box-shadow: 0 0 0 3px #f2dce4; }
+.hero-search-icon { color: #8d5367; font-size: 27px; line-height: 1; }
+.hero-local-search input {
+  flex: 1 1 auto; min-width: 0; width: 100%;
+  border: 0; outline: none !important; background: transparent;
+  color: #20161c; font-size: 14px; box-shadow: none !important;
+}
+.hero-local-search input:focus { outline: none !important; }
+.hero-local-search-row button {
+  flex: 0 0 auto; align-self: stretch;
+  min-height: 44px; padding: 10px 17px;
+  border: 0; border-radius: 9px;
+  background: var(--wine, #76253f); color: #fff;
+  font-size: 12px; font-weight: 800; white-space: nowrap;
+}
+.hero-local-search-row button:hover { background: var(--wine-dark, #591a30); }
+.hero-local-search-note { color: #6a5b62; font-size: 10px; }
+@media (max-width: 960px) {
+  .latest-phone-photo { height: 260px; flex-basis: 260px; }
+}
+@media (max-width: 620px) {
+  .latest-phone-photo { height: 190px; flex-basis: 190px; padding: 0; }
+  .latest-phone-photo img { top: 13px; left: 13px; width: calc(100% - 26px); height: calc(100% - 26px); }
+  .hero-local-search-row { gap: 6px; padding-left: 12px; min-height: 53px; }
+  .hero-local-search-row button { padding: 8px 10px; font-size: 11px; }
+  .hero-local-search input { font-size: 12px; }
+}
+@media (max-width: 360px) {
+  .latest-phone-photo { height: 230px; flex-basis: 230px; }
+}
