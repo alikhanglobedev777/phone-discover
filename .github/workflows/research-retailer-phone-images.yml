@@ -1,0 +1,41 @@
+name: Research WhatMobile and PriceOye phone pictures
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/research-retailer-phone-images.yml']
+  workflow_dispatch:
+    inputs:
+      start:
+        description: "Start at model index"
+        type: number
+        required: true
+        default: 0
+      limit:
+        description: "Number of phones to research (up to 2500)"
+        type: number
+        required: true
+        default: 2500
+permissions:
+  contents: read
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Checkout latest catalog
+        uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Confirm image identity and publisher URL protections
+        run: |
+          python -m unittest discover -s backend/scripts -p 'test_discover_retailer_phone_images.py'
+      - name: Find exact product images and documented colors
+        run: |
+          python backend/scripts/discover_retailer_phone_images.py backend/data/phones_import_ready.csv --output backend/data/retailer_image_candidates.csv --start ${{ inputs.start || 0 }} --limit ${{ inputs.limit || 2500 }}
+      - name: Upload review manifest (rights not yet granted)
+        uses: actions/upload-artifact@v4
+        with:
+          name: retailer-photo-and-color-candidates
+          path: backend/data/retailer_image_candidates.csv
+          if-no-files-found: error
+          retention-days: 14
