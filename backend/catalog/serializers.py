@@ -88,6 +88,12 @@ class DeviceVariantSerializer(serializers.ModelSerializer):
 class DeviceListSerializer(serializers.ModelSerializer):
     brand = BrandSerializer(read_only=True)
     lowest_price = serializers.SerializerMethodField()
+    colors = DeviceColorSerializer(many=True, read_only=True)
+    variants_count = serializers.SerializerMethodField()
+
+    def get_variants_count(self, obj):
+        # The list view already prefetches variants; avoid per-card count queries.
+        return len(obj.variants.all())
 
     class Meta:
         model = Device
@@ -102,6 +108,8 @@ class DeviceListSerializer(serializers.ModelSerializer):
             "release_date",
             "operating_system",
             "primary_image_url",
+            "colors",
+            "variants_count",
             "lowest_price",
         ]
 
@@ -170,7 +178,6 @@ class DeviceDetailSerializer(DeviceListSerializer):
             "specifications",
             "specification_sections",
             "images",
-            "colors",
             "last_verified_at",
             "variants",
             "pakistan_prices",
