@@ -319,7 +319,7 @@ h2 { color: #111; letter-spacing: -.055em; line-height: 1.12; font-weight: 780; 
 
 /* Catalog cards: honest imagery fallback, sourced finishes and visible variants action. */
 .phone-card .phone-art img { display: block; max-width: 100%; object-fit: contain; }
-.phone-art > .photo-pending-label {
+.phone-card .phone-art > span.photo-pending-label {
   position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
   display: inline-flex; align-items: center; justify-content: center;
   width: auto; height: auto; min-width: 110px;
