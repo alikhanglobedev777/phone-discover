@@ -1,0 +1,49 @@
+name: Publish recovered WhatMobile photos from completed scan
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-whatmobile-photos-from-run-39645052179.yml'
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+      - name: Regression-test safe merge
+        run: |
+          python -m unittest discover -s backend/scripts -p 'test_merge_whatmobile_media.py'
+      - name: Reuse the three completed image-scan artifacts
+        uses: actions/download-artifact@v4
+        with:
+          repository: alikhanglobedev777/phone-discover
+          run-id: 39645052179
+          github-token: ${{ github.token }}
+          pattern: whatmobile-media-*
+          merge-multiple: true
+          path: shards
+      - name: Merge only exact-model unambiguous images
+        run: |
+          python backend/scripts/merge_whatmobile_media.py shards --output backend/data/whatmobile_media.csv --min-photos 500
+          cp backend/scripts/whatmobile_media_migration_template.txt backend/catalog/migrations/0009_import_whatmobile_media.py
+          python -m py_compile backend/catalog/migrations/0009_import_whatmobile_media.py
+      - name: Publish image manifest and one-time migration together
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/data/whatmobile_media.csv backend/catalog/migrations/0009_import_whatmobile_media.py
+          git diff --cached --stat
+          if git diff --cached --quiet; then
+            echo "No changes: image manifest and migration already published."
+          else
+            git commit -m "Populate missing phone photos from authorized WhatMobile sources"
+            git push origin HEAD:main
+          fi
