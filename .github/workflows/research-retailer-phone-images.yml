@@ -1,50 +1,76 @@
-name: Research WhatMobile and PriceOye phone pictures
+name: Import authorized WhatMobile phone photos
 on:
   push:
     branches: [main]
-    paths: ['.github/workflows/research-retailer-phone-images.yml']
+    paths:
+      - '.github/workflows/research-retailer-phone-images.yml'
   workflow_dispatch:
-    inputs:
-      start:
-        description: "Start at model index"
-        type: number
-        required: true
-        default: 0
-      limit:
-        description: "Number of phones to research (up to 2500)"
-        type: number
-        required: true
-        default: 2500
 permissions:
   contents: write
+concurrency:
+  group: whatmobile-authorized-image-enrichment
+  cancel-in-progress: false
 jobs:
-  research:
+  discover:
+    name: Exact-model scan shard \${{ matrix.shard }}
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2]
     steps:
-      - name: Checkout latest catalog
+      - name: Checkout pinned repository main
         uses: actions/checkout@v4
         with:
           ref: main
-      - name: Confirm image identity and publisher URL protections
+      - name: Test WhatMobile page matching, image types, robots and host rules
         run: |
           python -m unittest discover -s backend/scripts -p 'test_discover_retailer_phone_images.py'
-      - name: Find exact product images and documented colors
+          python -m unittest discover -s backend/scripts -p 'test_collect_whatmobile_media.py'
+          python -m py_compile backend/scripts/merge_whatmobile_media.py
+      - name: Collect actual images from WhatMobile only
         run: |
-          python backend/scripts/discover_retailer_phone_images.py backend/data/phones_import_ready.csv --output backend/data/retailer_image_candidates.csv --start ${{ inputs.start || 0 }} --limit ${{ inputs.limit || 2500 }}
-      - name: Upload review manifest (rights not yet granted)
+          mkdir -p shards
+          python backend/scripts/collect_whatmobile_media.py backend/data/phones_import_ready.csv --output shards/whatmobile_media_\${{ matrix.shard }}.csv --start $(( \${{ matrix.shard }} * 750 )) --limit 750
+      - name: Upload source-verified images
         uses: actions/upload-artifact@v4
         with:
-          name: retailer-photo-and-color-candidates
-          path: backend/data/retailer_image_candidates.csv
+          name: whatmobile-media-\${{ matrix.shard }}
+          path: shards/whatmobile_media_\${{ matrix.shard }}.csv
           if-no-files-found: error
           retention-days: 14
-      - name: Save non-publication source report in GitHub for color and image matching
+
+  publish:
+    name: Commit source-verified manifest and additive image migration
+    needs: discover
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout current repository main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+      - name: Download all completed source manifests
+        uses: actions/download-artifact@v4
+        with:
+          pattern: whatmobile-media-*
+          path: shards
+          merge-multiple: true
+      - name: Validate model identity, publisher and exact image URLs
+        run: |
+          python backend/scripts/merge_whatmobile_media.py shards --output backend/data/whatmobile_media.csv --min-photos 5
+          cp backend/scripts/whatmobile_media_migration_template.txt backend/catalog/migrations/0009_import_whatmobile_media.py
+          python -m py_compile backend/catalog/migrations/0009_import_whatmobile_media.py
+      - name: Commit media and one-time Django migration atomically
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add backend/data/retailer_image_candidates.csv
-          if ! git diff --cached --quiet; then
-            git commit -m "Record retailer product-photo candidates awaiting reuse approval"
+          git add backend/data/whatmobile_media.csv backend/catalog/migrations/0009_import_whatmobile_media.py
+          if git diff --cached --quiet; then
+            echo "WhatMobile media import is already committed."
+          else
+            git commit -m "Import exact-model authorized WhatMobile photos and documented colors"
             git push origin HEAD:main
           fi
