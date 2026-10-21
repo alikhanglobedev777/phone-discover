@@ -2,7 +2,7 @@ name: Prepare 2020+ smartphone CSV
 on:
   workflow_dispatch:
 permissions:
-  contents: write
+  contents: read
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -42,15 +42,12 @@ jobs:
           print("Rows by brand:", dict(sorted(brands.items())))
           assert len(models) >= 100, "Too few catalog models; refusing to commit"
           PY
-      - name: Commit CSV to main for review (no database changes)
-        run: |
-          cd phone-discover
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add backend/data/phones_2020_onward.csv backend/data/TECHAPI_LICENSE.md
-          if git diff --cached --quiet; then
-            echo "CSV unchanged; no commit needed."
-          else
-            git commit -m "Generate candidate 2020+ smartphone CSV"
-            git push origin HEAD:main
-          fi
+      - name: Upload candidate and conflict report for review (no production changes)
+        uses: actions/upload-artifact@v4
+        with:
+          name: phone-catalog-candidate
+          path: |
+            phone-discover/backend/data/phones_2020_onward.csv
+            phone-discover/backend/data/phones_release_date_conflicts.csv
+            phone-discover/backend/data/TECHAPI_LICENSE.md
+          if-no-files-found: error
