@@ -1,0 +1,61 @@
+name: Enrich Google Pixel phone photographs from GSMArena
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/import-gsmarena-google-pixel-photos.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: exact-gsmarena-pixel-photos
+  cancel-in-progress: false
+jobs:
+  discover:
+    name: Discover and validate exact Google Pixel product pictures
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout current Phone Discover main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+      - name: Run exact-model and URL-safety regression tests
+        run: |
+          python -m unittest discover -s backend/scripts -p 'test_collect_gsmarena_pixel_photos.py'
+          python -m py_compile backend/scripts/gsmarena_pixel_migration_template.txt
+      - name: Scan GSMArena Google model and pictures pages
+        run: |
+          python backend/scripts/collect_gsmarena_pixel_photos.py backend/data/phones_import_ready.csv --output backend/data/gsmarena_pixel_photos.csv
+      - name: Verify source count before publishing
+        run: |
+          python - <<'PY'
+          import csv
+          with open("backend/data/gsmarena_pixel_photos.csv", encoding="utf-8-sig") as f:
+              rows = list(csv.DictReader(f))
+          if len(rows) < 5:
+              raise SystemExit(f"Found only {len(rows)} exact Pixel image galleries. Refusing incomplete import.")
+          print(f"Verified {len(rows)} Pixel models with GSMArena photo galleries")
+          PY
+      - name: Upload image evidence and matching gallery URLs
+        uses: actions/upload-artifact@v4
+        with:
+          name: exact-gsmarena-google-pixel-photo-manifest
+          path: backend/data/gsmarena_pixel_photos.csv
+          if-no-files-found: error
+      - name: Prepare additive one-time Django media migration
+        run: |
+          cp backend/scripts/gsmarena_pixel_migration_template.txt backend/catalog/migrations/0013_import_gsmarena_pixel_photos.py
+          python -m py_compile backend/catalog/migrations/0013_import_gsmarena_pixel_photos.py
+      - name: Commit validated pixel image sources and migration for Render
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/data/gsmarena_pixel_photos.csv backend/catalog/migrations/0013_import_gsmarena_pixel_photos.py
+          if git diff --cached --quiet; then
+            echo "Pixel photo evidence already committed"
+          else
+            git commit -m "Backfill exact Google Pixel model photos from operator-approved GSMArena"
+            git push origin HEAD:main
+          fi
