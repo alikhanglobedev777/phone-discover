@@ -42,6 +42,10 @@ jobs:
           print("Rows by brand:", dict(sorted(brands.items())))
           assert len(models) >= 100, "Too few catalog models; refusing to commit"
           PY
+      - name: Audit candidate names, dates and memory (read-only)
+        run: |
+          cd phone-discover
+          python backend/scripts/audit_phone_catalog.py backend/data/phones_2020_onward.csv --output backend/data/phones_catalog_audit.csv
       - name: Upload candidate and conflict report for review (no production changes)
         uses: actions/upload-artifact@v4
         with:
@@ -49,5 +53,6 @@ jobs:
           path: |
             phone-discover/backend/data/phones_2020_onward.csv
             phone-discover/backend/data/phones_release_date_conflicts.csv
+            phone-discover/backend/data/phones_catalog_audit.csv
             phone-discover/backend/data/TECHAPI_LICENSE.md
           if-no-files-found: error
