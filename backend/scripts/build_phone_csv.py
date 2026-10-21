@@ -47,6 +47,10 @@ def create_csv(source_root, output=OUTPUT):
         base = source_root / "smartphone"
     today = date.today()
     records = {}
+    # Keep evidence for every accepted upstream candidate BEFORE selecting the
+    # preferred row for a variant. Otherwise a duplicate RAM/storage key with a
+    # different release date can silently hide a disagreement.
+    evidence = defaultdict(list)
     skipped = defaultdict(int)
     for brand_slug, brand in BRANDS.items():
         for year in range(2020, today.year + 1):
@@ -91,6 +95,7 @@ def create_csv(source_root, output=OUTPUT):
                             "source_urls": json.dumps(sources, ensure_ascii=False),
                             "upstream_path": str(path.relative_to(source_root)).replace("\\", "/"),
                         }
+                        evidence[(brand.casefold(), name.casefold())].append(row)
                         # Prefer an entry with more source detail; deterministic duplicate resolution.
                         if key not in records or len(row["source_urls"]) + len(row["colors"]) > len(records[key]["source_urls"]) + len(records[key]["colors"]):
                             records[key] = row
@@ -99,18 +104,37 @@ def create_csv(source_root, output=OUTPUT):
     # Keep every named model internally consistent. A 2020+ base model must
     # not be assigned mutually contradictory release dates by a mixture of
     # scraped regional or carrier entries. Quarantine it for human review.
-    dates = defaultdict(set)
-    for row in records.values():
-        dates[(row["brand"].casefold(), row["device"].casefold())].add(row["release_date"])
-    conflicts = {key: sorted(values) for key, values in dates.items() if len(values) > 1}
+    conflicts = {}
+    for key, rows in evidence.items():
+        candidate_dates = {row["release_date"] for row in rows}
+        if len(candidate_dates) > 1:
+            conflicts[key] = sorted(candidate_dates)
+
+    # Always write this report, including a header-only file if conflict-free,
+    # so a previous run cannot leave a stale conflict report in the artifact.
+    report_path = Path(output).with_name("phones_release_date_conflicts.csv")
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_fields = ["brand", "device", "conflicting_release_dates",
+                     "candidate_release_date", "ram_gb", "storage_gb",
+                     "upstream_path", "source_urls"]
+    with report_path.open("w", encoding="utf-8", newline="") as report:
+        writer = csv.DictWriter(report, fieldnames=report_fields, lineterminator="\n")
+        writer.writeheader()
+        for key in sorted(conflicts):
+            # One row for each upstream candidate, NOT one per model: reviewers
+            # can compare disputed dates to their original paths and citations.
+            for row in sorted(evidence[key],
+                              key=lambda item: (item["release_date"], item["upstream_path"],
+                                                item["ram_gb"], item["storage_gb"])):
+                writer.writerow({
+                    "brand": row["brand"], "device": row["device"],
+                    "conflicting_release_dates": "; ".join(conflicts[key]),
+                    "candidate_release_date": row["release_date"],
+                    "ram_gb": row["ram_gb"], "storage_gb": row["storage_gb"],
+                    "upstream_path": row["upstream_path"],
+                    "source_urls": row["source_urls"],
+                })
     if conflicts:
-        report_path = Path(output).with_name("phones_release_date_conflicts.csv")
-        report_path.parent.mkdir(parents=True, exist_ok=True)
-        with report_path.open("w", encoding="utf-8", newline="") as report:
-            writer = csv.writer(report, lineterminator="\n")
-            writer.writerow(["brand", "device", "conflicting_release_dates"])
-            for (brand, name), conflicting_dates in sorted(conflicts.items()):
-                writer.writerow([brand, name, "; ".join(conflicting_dates)])
         records = {key: row for key, row in records.items()
                    if (row["brand"].casefold(), row["device"].casefold()) not in conflicts}
         print(f"Quarantined {len(conflicts)} models with conflicting release dates: {report_path}")
