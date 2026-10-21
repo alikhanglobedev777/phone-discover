@@ -39,7 +39,6 @@ class DetailParser(HTMLParser):
         self.rows = []
         self._in_row = False
         self._cell_tag = None
-        self._cell_depth = 0
         self._cell_text = []
         self._cells = []
         self.links = []
@@ -56,10 +55,7 @@ class DetailParser(HTMLParser):
             self._cells = []
         elif self._in_row and tag in ("td", "th") and self._cell_tag is None:
             self._cell_tag = tag
-            self._cell_depth = 0
             self._cell_text = []
-        elif self._cell_tag is not None:
-            self._cell_depth += 1
         if tag == "a":
             self.links.append({"url": attrs.get("href", ""),
                                "title": attrs.get("title", "")})
@@ -74,13 +70,12 @@ class DetailParser(HTMLParser):
             self._title = True
 
     def handle_endtag(self, tag):
-        if self._cell_tag is not None:
-            if tag == self._cell_tag and self._cell_depth == 0:
-                text = normalized(" ".join(self._cell_text))
-                self._cells.append((self._cell_tag, text))
-                self._cell_tag = None
-            elif self._cell_depth > 0:
-                self._cell_depth -= 1
+        if self._cell_tag is not None and tag == self._cell_tag:
+            # Nested formatting tags and void <br>/<img> inside table cells
+            # must not prevent the outer td/th from closing.
+            text = normalized(" ".join(self._cell_text))
+            self._cells.append((self._cell_tag, text))
+            self._cell_tag = None
         if tag == "tr" and self._in_row:
             if self._cells:
                 self.rows.append(self._cells)
