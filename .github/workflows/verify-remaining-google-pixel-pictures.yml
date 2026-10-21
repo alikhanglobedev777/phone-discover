@@ -1,0 +1,47 @@
+name: Verify remaining Pixel 5a 10a and Fold photographs
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/verify-remaining-google-pixel-pictures.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout source and existing catalog
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+      - name: Probe actual GSMArena CDN for exact model JPEGs
+        run: |
+          python backend/scripts/probe_remaining_google_product_photos.py backend/data/phones_import_ready.csv --output backend/data/gsmarena_remaining_pixel_photos.csv
+      - name: Archive source evidence even on no-result runs
+        uses: actions/upload-artifact@v4
+        with:
+          name: remaining-google-pixel-product-image-evidence
+          path: backend/data/gsmarena_remaining_pixel_photos.csv
+          if-no-files-found: error
+      - name: Only prepare importer when JPEG responses are real
+        run: |
+          python - <<'PY'
+          import csv
+          with open('backend/data/gsmarena_remaining_pixel_photos.csv', encoding='utf-8') as f:
+              matches = list(csv.DictReader(f))
+          if not matches:
+              raise SystemExit('No verified GSMArena pictures available; do not change the database.')
+          print('Verified exact model JPEG sources:', [r['device'] for r in matches])
+          PY
+          cp backend/scripts/remaining_pixel_photo_migration_template.txt backend/catalog/migrations/0022_import_remaining_verified_pixel_photos.py
+          python -m py_compile backend/catalog/migrations/0022_import_remaining_verified_pixel_photos.py
+      - name: Publish only verified Pixel photos
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/data/gsmarena_remaining_pixel_photos.csv backend/catalog/migrations/0022_import_remaining_verified_pixel_photos.py
+          git commit -m "Fill remaining Pixel models using verified GSMArena product photos"
+          git push origin HEAD:main
