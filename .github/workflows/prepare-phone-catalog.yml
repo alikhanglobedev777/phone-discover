@@ -1,0 +1,35 @@
+name: Prepare 2020+ smartphone CSV
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Phone Discover
+        uses: actions/checkout@v4
+        with:
+          ref: catalog-sync-2020-plus-review
+          path: phone-discover
+      - name: Checkout TechAPI source data
+        uses: actions/checkout@v4
+        with:
+          repository: GetTechAPI/TechAPI
+          ref: develop
+          path: techapi
+          sparse-checkout: |
+            data/smartphone
+            data/LICENSE.md
+      - name: Build reviewed-input CSV (not production import)
+        run: |
+          cd phone-discover
+          python backend/scripts/build_phone_csv.py ../techapi
+      - name: Commit generated CSV to review branch
+        run: |
+          cd phone-discover
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/data/phones_2020_onward.csv
+          git commit -m "Generate sourced 2020+ smartphone catalog CSV" || exit 0
+          git push origin catalog-sync-2020-plus-review
