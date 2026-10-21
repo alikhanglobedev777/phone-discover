@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   discover:
-    name: Exact-model scan shard \${{ matrix.shard }}
+    name: Exact-model scan shard ${{ matrix.shard }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
     strategy:
@@ -32,12 +32,12 @@ jobs:
       - name: Collect actual images from WhatMobile only
         run: |
           mkdir -p shards
-          python backend/scripts/collect_whatmobile_media.py backend/data/phones_import_ready.csv --output shards/whatmobile_media_\${{ matrix.shard }}.csv --start $(( \${{ matrix.shard }} * 750 )) --limit 750
+          python backend/scripts/collect_whatmobile_media.py backend/data/phones_import_ready.csv --output shards/whatmobile_media_${{ matrix.shard }}.csv --start $(( ${{ matrix.shard }} * 750 )) --limit 750
       - name: Upload source-verified images
         uses: actions/upload-artifact@v4
         with:
-          name: whatmobile-media-\${{ matrix.shard }}
-          path: shards/whatmobile_media_\${{ matrix.shard }}.csv
+          name: whatmobile-media-${{ matrix.shard }}
+          path: shards/whatmobile_media_${{ matrix.shard }}.csv
           if-no-files-found: error
           retention-days: 14
 
