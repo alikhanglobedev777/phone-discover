@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="420" viewBox="0 0 520 420" role="img" aria-label="Phone photography pending">
+  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f4f4f4"/><stop offset="1" stop-color="#e8e8e8"/></linearGradient></defs>
+  <rect width="520" height="420" fill="#fafafa"/>
+  <ellipse cx="260" cy="358" rx="104" ry="15" fill="#ddd" opacity=".8"/>
+  <rect x="180" y="56" width="160" height="294" rx="25" fill="#222"/>
+  <rect x="188" y="64" width="144" height="278" rx="20" fill="url(#g)"/>
+  <rect x="236" y="71" width="48" height="9" rx="4.5" fill="#222"/>
+  <circle cx="260" cy="207" r="38" fill="none" stroke="#aaa" stroke-width="4"/>
+  <path d="m242 211 13 13 25-29" stroke="#999" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="260" y="389" text-anchor="middle" font-family="system-ui,sans-serif" font-size="14" fill="#666">PHOTO AWAITING VERIFICATION</text>
+</svg>
