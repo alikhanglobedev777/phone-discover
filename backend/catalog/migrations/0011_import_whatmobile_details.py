@@ -1,0 +1,212 @@
+"""Bulk additive WhatMobile technical specification and explicit photo-gallery import.
+
+Operator confirmed WhatMobile media reuse. No invented specs or photo angles.
+All existing phone identities, RAM/storage pairs, PKR prices, known good
+specifications, and images are preserved. No network requests at startup.
+"""
+import csv
+import json
+from collections import defaultdict
+from pathlib import Path
+from urllib.parse import urlsplit
+
+from django.db import migrations
+
+HOSTS = {"www.whatmobile.com.pk", "whatmobile.com.pk"}
+SECTIONS = ("Build", "Network", "Processor", "Display", "Memory", "Camera",
+            "Connectivity", "Features", "Battery")
+
+
+def allowed(url, photo=False):
+    try:
+        parsed = urlsplit(url)
+        return (parsed.scheme == "https" and parsed.hostname in HOSTS and
+                (not photo or "/admin/images/" in parsed.path.casefold()))
+    except ValueError:
+        return False
+
+
+def import_details(apps, schema_editor):
+    Device = apps.get_model("catalog", "Device")
+    Variant = apps.get_model("catalog", "DeviceVariant")
+    Image = apps.get_model("catalog", "DeviceImage")
+    Color = apps.get_model("catalog", "DeviceColor")
+    Section = apps.get_model("catalog", "SpecificationSection")
+    Item = apps.get_model("catalog", "SpecificationItem")
+    path = Path(__file__).resolve().parents[2] / "data" / "whatmobile_details.csv"
+    if not path.is_file():
+        raise RuntimeError(f"Source-backed WhatMobile specification manifest missing: {path}")
+    models = {
+        (obj.brand.name.casefold(), obj.name.casefold()): obj
+        for obj in Device.objects.select_related("brand")
+        .prefetch_related("variants").filter(is_published=True)
+    }
+    updates = []
+    variant_updates = []
+    image_creates = []
+    color_creates = []
+    requested_sections = []
+    pending_items = []
+    seen = set()
+    selected_device_ids = set()
+    claimed_urls = defaultdict(set)
+    with path.open(newline="", encoding="utf-8-sig") as stream:
+        reader = csv.DictReader(stream)
+        required = {"brand", "device", "product_page", "operating_system",
+                    "chipset", "battery_mah", "refresh_hz",
+                    "spec_sections_json", "gallery_json"}
+        if not required.issubset(reader.fieldnames or []):
+            raise RuntimeError("Incomplete WhatMobile technical detail manifest")
+        rows = list(reader)
+    if len(rows) < 100:
+        raise RuntimeError("Too few source-verified phone spec rows to import")
+
+    # Validate the ENTIRE input before any updates, including excluded models.
+    for n, row in enumerate(rows, 2):
+        key = (row["brand"].strip().casefold(), row["device"].strip().casefold())
+        if not all(key) or key in seen or not allowed(row["product_page"]):
+            raise RuntimeError(f"Invalid/duplicate source identity line {n}")
+        seen.add(key)
+        try:
+            sections = json.loads(row["spec_sections_json"])
+            photos = json.loads(row["gallery_json"])
+        except (ValueError, TypeError) as exc:
+            raise RuntimeError(f"Invalid JSON on source line {n}") from exc
+        if (not isinstance(sections, dict) or not isinstance(photos, list) or
+            len(photos) > 8 or
+            any(s not in SECTIONS or not isinstance(pairs, dict) or len(pairs) > 36
+                for s, pairs in sections.items()) or
+            any(not isinstance(url, str) or len(url) > 1000 or
+                not allowed(url, photo=True) for url in photos)):
+            raise RuntimeError(f"Unsafe spec section or image URL on source line {n}")
+        for section, pairs in sections.items():
+            for label, value in pairs.items():
+                if (not isinstance(label, str) or not isinstance(value, str) or
+                        not 1 <= len(label) <= 90 or not 1 <= len(value) <= 900):
+                    raise RuntimeError(f"Invalid spec entry on source line {n}")
+        row["_sections"] = sections
+        row["_photos"] = photos
+        for url in photos:
+            claimed_urls[url].add(key)
+    ambiguous_urls = {url for url, owners in claimed_urls.items() if len(owners) > 1}
+    existing_photo = defaultdict(set)
+    existing_images = Image.objects.values_list("device_id", "image_url")
+    for device_id, url in existing_images.iterator():
+        existing_photo[device_id].add(url)
+    existing_colors = defaultdict(set)
+    for device_id, name in Color.objects.values_list("device_id", "name").iterator():
+        existing_colors[device_id].add(name.casefold())
+    existing_sections = {
+        (d, slug): sid
+        for sid, d, slug in Section.objects.values_list("id", "device_id", "slug").iterator()
+    }
+    existing_labels = defaultdict(set)
+    for sid, label in Item.objects.values_list("section_id", "label").iterator():
+        existing_labels[sid].add(label.casefold())
+    processed = 0
+    for row in rows:
+        key = (row["brand"].strip().casefold(), row["device"].strip().casefold())
+        device = models.get(key)
+        if device is None:
+            continue
+        processed += 1
+        selected_device_ids.add(device.pk)
+        dirty = False
+        if not device.operating_system and row["operating_system"].strip():
+            device.operating_system = row["operating_system"].strip()
+            dirty = True
+        specs = dict(device.specifications or {})
+        if "whatmobile_specs_source" not in specs:
+            specs["whatmobile_specs_source"] = row["product_page"]
+            device.specifications = specs
+            dirty = True
+        battery = int(row["battery_mah"]) if row["battery_mah"].strip() else None
+        refresh = int(row["refresh_hz"]) if row["refresh_hz"].strip() else None
+        chipset = row["chipset"].strip()
+        if (len(chipset) > 160 or
+            battery is not None and not 500 <= battery <= 30000 or
+            refresh is not None and not 60 <= refresh <= 240):
+            raise RuntimeError(f"Implausible scalar specification for {key}")
+        for variant in device.variants.all():
+            changed = False
+            if chipset and not variant.chipset:
+                variant.chipset = chipset
+                changed = True
+            if battery is not None and variant.battery_mah is None:
+                variant.battery_mah = battery
+                changed = True
+            if refresh is not None and variant.display_refresh_hz is None:
+                variant.display_refresh_hz = refresh
+                changed = True
+            if changed:
+                variant_updates.append(variant)
+        for image_url in row["_photos"]:
+            if image_url in ambiguous_urls or image_url in existing_photo[device.pk]:
+                continue
+            # Color and camera angle are NOT inferred from generic filename '-b'.
+            import re
+            stem = Path(urlsplit(image_url).path).stem.casefold()
+            view = ("back" if re.search(r"(?:-|_)(?:rear|back)$", stem) else
+                    "front" if re.search(r"(?:-|_)(?:front)$", stem) else
+                    "unspecified")
+            is_primary = not device.primary_image_url and not existing_photo[device.pk]
+            image_creates.append(Image(
+                device_id=device.pk, image_url=image_url, view=view,
+                alt_text=f"{device.brand.name} {device.name} product photo"[:200],
+                is_primary=is_primary,
+            ))
+            if is_primary:
+                device.primary_image_url = image_url
+                dirty = True
+            existing_photo[device.pk].add(image_url)
+        colors = row["_sections"].get("Build", {}).get("Colors", "")
+        for name in (value.strip() for value in colors.split(",") if value.strip()):
+            if not 1 < len(name) <= 80 or name.casefold() in existing_colors[device.pk]:
+                continue
+            color_creates.append(Color(device_id=device.pk, name=name))
+            existing_colors[device.pk].add(name.casefold())
+        for index, (section_name, facts) in enumerate(row["_sections"].items()):
+            slug = section_name.casefold()
+            if (device.pk, slug) not in existing_sections:
+                requested_sections.append(Section(
+                    device_id=device.pk, slug=slug, name=section_name, sort_order=index
+                ))
+                existing_sections[(device.pk, slug)] = None
+            for label, value in facts.items():
+                pending_items.append((device.pk, slug, label, value))
+        if dirty:
+            updates.append(device)
+
+    # Do not overwrite existing data: idempotent create-only metadata rows.
+    Section.objects.bulk_create(requested_sections, ignore_conflicts=True, batch_size=300)
+    resolved = {
+        (device_id, slug): sid
+        for sid, device_id, slug in Section.objects.filter(
+            device_id__in=selected_device_ids
+        ).values_list("id", "device_id", "slug")
+    }
+    create_items = []
+    pending_keys = set()
+    for device_id, slug, label, value in pending_items:
+        sid = resolved[(device_id, slug)]
+        key = (sid, label.casefold())
+        if key in pending_keys or label.casefold() in existing_labels[sid]:
+            continue
+        pending_keys.add(key)
+        create_items.append(Item(section_id=sid, label=label, value=value))
+    Item.objects.bulk_create(create_items, ignore_conflicts=True, batch_size=400)
+    Image.objects.bulk_create(image_creates, ignore_conflicts=True, batch_size=300)
+    Color.objects.bulk_create(color_creates, ignore_conflicts=True, batch_size=300)
+    Device.objects.bulk_update(updates, ["operating_system", "primary_image_url", "specifications"], batch_size=300)
+    Variant.objects.bulk_update(variant_updates, ["chipset", "battery_mah", "display_refresh_hz"], batch_size=300)
+    print(f"WhatMobile technical details: {processed} source-matched phones, "
+          f"{len(create_items)} new specification fields, "
+          f"{len(image_creates)} verified gallery photos, "
+          f"{len(color_creates)} additional colors, "
+          f"{len(variant_updates)} filled variant specs. "
+          "Existing variants, prices and confirmed values unchanged.", flush=True)
+
+
+class Migration(migrations.Migration):
+    dependencies = [("catalog", "0011_populate_existing_catalog_spec_sections")]
+    operations = [migrations.RunPython(import_details, migrations.RunPython.noop)]
