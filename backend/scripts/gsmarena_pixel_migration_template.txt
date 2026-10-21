@@ -120,5 +120,5 @@ def backfill_google_pixel_images(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-    dependencies = [("catalog", "0012_import_cc_licensed_phone_photos")]
+    dependencies = [("catalog", "0014_seed_more_verified_gsmarena_pixel_views")]
     operations = [migrations.RunPython(backfill_google_pixel_images, migrations.RunPython.noop)]
