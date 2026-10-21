@@ -7,12 +7,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Phone Discover
+      - name: Checkout Phone Discover main
         uses: actions/checkout@v4
         with:
-          ref: catalog-sync-2020-plus-review
+          ref: main
           path: phone-discover
-      - name: Checkout TechAPI source data
+          persist-credentials: true
+      - name: Checkout upstream TechAPI dataset
         uses: actions/checkout@v4
         with:
           repository: GetTechAPI/TechAPI
@@ -21,15 +22,35 @@ jobs:
           sparse-checkout: |
             data/smartphone
             data/LICENSE.md
-      - name: Build reviewed-input CSV (not production import)
+      - name: Build source-attributed candidate CSV
         run: |
           cd phone-discover
           python backend/scripts/build_phone_csv.py ../techapi
-      - name: Commit generated CSV to review branch
+          cp ../techapi/data/LICENSE.md backend/data/TECHAPI_LICENSE.md
+      - name: Show CSV size and brand/model coverage
+        run: |
+          cd phone-discover
+          python - <<'PY'
+          import collections, csv
+          from pathlib import Path
+          path = Path("backend/data/phones_2020_onward.csv")
+          with path.open(encoding="utf-8", newline="") as handle:
+              rows = list(csv.DictReader(handle))
+          brands = collections.Counter(row["brand"] for row in rows)
+          models = {(row["brand"], row["device"]) for row in rows}
+          print(f"Generated {len(rows)} variant rows, {len(models)} distinct model names.")
+          print("Rows by brand:", dict(sorted(brands.items())))
+          assert len(models) >= 100, "Too few catalog models; refusing to commit"
+          PY
+      - name: Commit CSV to main for review (no database changes)
         run: |
           cd phone-discover
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add backend/data/phones_2020_onward.csv
-          git commit -m "Generate sourced 2020+ smartphone catalog CSV" || exit 0
-          git push origin catalog-sync-2020-plus-review
+          git add backend/data/phones_2020_onward.csv backend/data/TECHAPI_LICENSE.md
+          if git diff --cached --quiet; then
+            echo "CSV unchanged; no commit needed."
+          else
+            git commit -m "Generate candidate 2020+ smartphone CSV"
+            git push origin HEAD:main
+          fi
