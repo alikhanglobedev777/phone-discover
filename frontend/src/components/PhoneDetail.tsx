@@ -26,6 +26,10 @@ export function PhoneDetail({ device, onClose }: Props) {
   const selectedColor = device.colors?.find((color) => color.id === colorId);
   const attribution = device.specifications?.photo_attribution as
     | { source?: string; license?: string; credit?: string } | undefined;
+  const specsSource = device.specifications?.whatmobile_specs_source;
+  const hasAssessedScores = device.variants?.some((v) =>
+    [v.camera_score, v.gaming_score, v.battery_score].some((n) => Number(n) > 0),
+  );
 
   useEffect(() => {
     setVariantId(device.variants?.[0]?.id ?? null);
@@ -111,6 +115,9 @@ export function PhoneDetail({ device, onClose }: Props) {
               </div>
             )}
             {!device.colors?.length && <p className="detail-image-note">More angles and colors will appear when product photography is available.</p>}
+            {allPhotos.length === 1 && (
+              <p className="detail-image-note">Only one verified product view is currently documented. Other angles will appear when exact-model photos are available.</p>
+            )}
             {attribution?.source?.startsWith("https://commons.wikimedia.org/") && (
               <p className="detail-image-note">
                 Image: {attribution.credit ?? "Wikimedia Commons contributor"} · {attribution.license ?? "Source license"} ·{" "}
@@ -154,19 +161,23 @@ export function PhoneDetail({ device, onClose }: Props) {
               <div><span>Display</span><strong>{variant.display_refresh_hz ? `${variant.display_refresh_hz} Hz` : "—"}</strong></div>
               <div><span>Chipset</span><strong>{variant.chipset || "—"}</strong></div>
             </div>
-            <div className="score-grid">
-              {[
-                ["Camera", variant.camera_score],
-                ["Gaming", variant.gaming_score],
-                ["Battery", variant.battery_score],
-              ].map(([label, score]) => (
-                <div className="score-row" key={label}>
-                  <span>{label}</span>
-                  <div><i style={{ width: `${Math.min(100, Number(score))}%` }} /></div>
-                  <strong>{Number(score).toFixed(0)}</strong>
-                </div>
-              ))}
-            </div>
+            {hasAssessedScores ? (
+              <div className="score-grid">
+                {[
+                  ["Camera", variant.camera_score],
+                  ["Gaming", variant.gaming_score],
+                  ["Battery", variant.battery_score],
+                ].map(([label, score]) => (
+                  <div className="score-row" key={label}>
+                    <span>{label}</span>
+                    <div><i style={{ width: `${Math.min(100, Number(score))}%` }} /></div>
+                    <strong>{Number(score) > 0 ? Number(score).toFixed(0) : "Not rated"}</strong>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="detail-image-note">Performance scores have not been independently assessed; missing scores are not zero performance.</p>
+            )}
           </section>
         )}
 
@@ -188,6 +199,12 @@ export function PhoneDetail({ device, onClose }: Props) {
           </section>
         )}
 
+        {typeof specsSource === "string" && specsSource.startsWith("https://www.whatmobile.com.pk/") && (
+          <p className="detail-image-note">
+            Technical specifications: <a href={specsSource} rel="noopener noreferrer" target="_blank">WhatMobile source page ↗</a>
+            {" "}· Specifications may differ by market or memory configuration.
+          </p>
+        )}
         <section className="offers-section">
           <div className="detail-section-heading">
             <div><p className="eyebrow">Where to buy</p><h3>Available offers</h3></div>
