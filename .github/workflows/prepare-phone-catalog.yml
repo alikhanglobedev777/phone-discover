@@ -58,6 +58,8 @@ jobs:
           cd phone-discover
           python -m unittest discover -s backend/scripts -p 'test_audit_phone_catalog.py'
           python -m unittest discover -s backend/scripts -p 'test_build_phone_csv.py'
+          python -m unittest discover -s backend/scripts -p 'test_prepare_production_catalog.py'
+          python -m py_compile backend/catalog/management/commands/import_curated_phone_catalog.py
       - name: Audit candidate names, dates and memory (read-only)
         run: |
           cd phone-discover
