@@ -1,0 +1,86 @@
+"""Promote only verified GSMArena Pixel 10 Pro 5G product pictures.
+
+Current confirmed portrait photograph remains available as a secondary image.
+No existing prices, variants, catalog identities or other brands are touched.
+"""
+import csv
+import json
+import re
+from pathlib import Path
+from urllib.parse import urlsplit
+
+from django.db import migrations
+
+PREFIXES = (
+    "google-pixel-10-pro-5g", "google-pixel10-pro-5g",
+    "google-pixel-10-pro5g", "google-pixel10-pro5g",
+)
+PAGE = "https://www.gsmarena.com/google_pixel_10_pro_5g-pictures-13987.php"
+
+
+def verified(url):
+    data = urlsplit(url)
+    basename = data.path.rsplit("/", 1)[-1]
+    return (data.scheme == "https" and data.hostname in
+            ("fdn2.gsmarena.com", "fdn.gsmarena.com") and
+            data.path.startswith("/vv/pics/google/") and
+            any(re.fullmatch(re.escape(prefix) + r"-[123]\.jpg", basename)
+                for prefix in PREFIXES))
+
+
+def import_photo(apps, schema_editor):
+    Device = apps.get_model("catalog", "Device")
+    Image = apps.get_model("catalog", "DeviceImage")
+    manifest = Path(__file__).resolve().parents[2] / "data" / "gsmarena_pixel10_pro_photos.csv"
+    with manifest.open(encoding="utf-8-sig", newline="") as f:
+        rows = list(csv.DictReader(f))
+    if len(rows) != 1 or rows[0].get("device") != "Pixel 10 Pro" or (
+        rows[0].get("gallery_page") != PAGE or
+        rows[0].get("source_validation") !=
+        "Pixel 10 Pro 5G exact-model CDN JPEG verified"
+    ):
+        raise RuntimeError("Pixel 10 Pro product image source verification failed")
+    try:
+        photos = json.loads(rows[0]["image_urls"])
+    except (ValueError, TypeError) as error:
+        raise RuntimeError("Invalid GSMArena Pixel 10 Pro image evidence") from error
+    if (not isinstance(photos, list) or not 1 <= len(photos) <= 2 or
+            len(photos) != len(set(photos)) or
+            not all(isinstance(url, str) and verified(url) for url in photos)):
+        raise RuntimeError("Unverified Pixel 10 Pro media URLs")
+    device = Device.objects.filter(is_published=True,
+                                   brand__name__iexact="Google",
+                                   name__iexact="Pixel 10 Pro").first()
+    if not device:
+        return
+    Image.objects.filter(device_id=device.pk, is_primary=True).update(is_primary=False)
+    added = 0
+    for n, url in enumerate(photos):
+        image, created = Image.objects.get_or_create(
+            device_id=device.pk, image_url=url,
+            defaults={
+                "is_primary": n == 0, "sort_order": n, "view": "unspecified",
+                "alt_text": "Google Pixel 10 Pro official GSMArena product photograph",
+            })
+        if n == 0 and not image.is_primary:
+            image.is_primary = True
+            image.save(update_fields=["is_primary"])
+        added += int(created)
+    specs = dict(device.specifications or {})
+    prior = specs.get("photo_attribution")
+    if prior:
+        specs["secondary_image_attribution"] = prior
+    specs["photo_attribution"] = {
+        "publisher": "GSMArena", "source": PAGE,
+        "reuse_basis": "permission confirmed by Phone Discover operator",
+        "verification": "image/jpeg and exact Pixel 10 Pro filename verified",
+    }
+    device.primary_image_url = photos[0]
+    device.specifications = specs
+    device.save(update_fields=["primary_image_url", "specifications", "updated_at"])
+    print(f"GSMArena Pixel 10 Pro: promoted {len(photos)} checked photos, {added} new images", flush=True)
+
+
+class Migration(migrations.Migration):
+    dependencies = [("catalog", "0019_import_verified_gsmarena_pixel_images")]
+    operations = [migrations.RunPython(import_photo, migrations.RunPython.noop)]
