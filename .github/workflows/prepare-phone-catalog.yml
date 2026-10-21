@@ -48,10 +48,15 @@ jobs:
           cd phone-discover
           python -m unittest discover -s backend/scripts -p 'test_audit_phone_catalog.py'
           python -m unittest discover -s backend/scripts -p 'test_build_phone_csv.py'
+          python -m unittest discover -s backend/scripts -p 'test_triage_phone_release_dates.py'
       - name: Audit candidate names, dates and memory (read-only)
         run: |
           cd phone-discover
           python backend/scripts/audit_phone_catalog.py backend/data/phones_2020_onward.csv --output backend/data/phones_catalog_audit.csv
+      - name: Build unresolved release-date review queue (read-only)
+        run: |
+          cd phone-discover
+          python backend/scripts/triage_phone_release_dates.py backend/data/phones_release_date_conflicts.csv --output backend/data/phones_release_date_review_queue.csv
       - name: Upload candidate and conflict report for review (no production changes)
         uses: actions/upload-artifact@v4
         with:
@@ -59,6 +64,8 @@ jobs:
           path: |
             phone-discover/backend/data/phones_2020_onward.csv
             phone-discover/backend/data/phones_release_date_conflicts.csv
+            phone-discover/backend/data/phones_release_date_review_queue.csv
+            phone-discover/backend/data/release_date_reference_events.csv
             phone-discover/backend/data/phones_catalog_audit.csv
             phone-discover/backend/data/TECHAPI_LICENSE.md
             phone-discover/backend/data/TECHAPI_UPSTREAM_COMMIT.txt
