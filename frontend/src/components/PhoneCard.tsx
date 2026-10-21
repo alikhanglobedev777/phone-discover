@@ -14,7 +14,14 @@ export function PhoneCard({ device, selected, onSelect, onOpen }: Props) {
   const releaseYear = device.release_date?.slice(0, 4);
   const [photoFailed, setPhotoFailed] = useState(false);
   useEffect(() => setPhotoFailed(false), [device.id, device.primary_image_url]);
-  const hasPhoto = Boolean(device.primary_image_url?.trim()) && !photoFailed;
+  // Exact-model photo URL from the WhatMobile listing, with reuse permission
+  // confirmed by the Phone Discover operator. Never substitute a Pro/Ultra photo.
+  const approvedWhatMobilePhoto =
+    device.brand.name.toLowerCase() === "xiaomi" && device.name === "12S Pro"
+      ? "https://www.whatmobile.com.pk/admin/images/Xiaomi/Xiaomi12SPro-b.jpg"
+      : "";
+  const displayPhoto = device.primary_image_url?.trim() || approvedWhatMobilePhoto;
+  const hasPhoto = Boolean(displayPhoto) && !photoFailed;
   const variantsCount = device.variants_count ?? device.variants?.length ?? 0;
   const colors = device.colors ?? [];
 
@@ -22,7 +29,7 @@ export function PhoneCard({ device, selected, onSelect, onOpen }: Props) {
     <article className={`phone-card ${selected ? "phone-card-selected" : ""}`}>
       <div className="phone-art">
         <img
-          src={hasPhoto ? device.primary_image_url : MISSING_PHOTO}
+          src={hasPhoto ? displayPhoto : MISSING_PHOTO}
           alt={hasPhoto ? `${device.brand.name} ${device.name}` : "Phone photo not yet available"}
           loading="lazy"
           onError={() => setPhotoFailed(true)}
