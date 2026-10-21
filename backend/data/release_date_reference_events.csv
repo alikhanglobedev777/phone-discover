@@ -1,0 +1,6 @@
+brand,device,event_type,event_date,market_scope,manufacturer_source_url,catalog_status
+Apple,iPhone 12,announcement,2020-10-13,Worldwide product announcement,https://www.apple.com/newsroom/2020/10/apple-announces-iphone-12-and-iphone-12-mini-a-new-era-for-iphone-with-5g/,event-verified_catalog-unresolved
+Apple,iPhone 12,initial_availability,2020-10-23,Initial listed launch markets (not verified Pakistan),https://www.apple.com/newsroom/2020/10/apple-announces-iphone-12-and-iphone-12-mini-a-new-era-for-iphone-with-5g/,event-verified_catalog-unresolved
+Oppo,Find X5 Pro,announcement,2022-02-24,Worldwide product announcement,https://www.oppo.com/en/newsroom/press/oppo-launches-find-x-five-series/,event-verified_catalog-unresolved
+Oppo,Find X5 Pro,availability,2022-03-14,Availability stated in OPPO global press release; local dates vary,https://www.oppo.com/en/newsroom/press/oppo-launches-find-x-five-series/,event-verified_catalog-unresolved
+Oppo,Find X5 Pro,availability,2022-03-24,United Kingdom,https://www.oppo.com/uk/newsroom/press/oppo-findx5series-launch-2022/,event-verified_catalog-unresolved
