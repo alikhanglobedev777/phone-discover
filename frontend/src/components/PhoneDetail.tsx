@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { galleryPhotos, photosForColor, viewLabel } from "../lib/deviceGallery";
+import { representativeFinishHex } from "../lib/finishSwatch";
 import { useModalKeyboard } from "../lib/useModalKeyboard";
 import type { Device } from "../types";
 
@@ -104,11 +105,12 @@ export function PhoneDetail({ device, onClose }: Props) {
                   </button>
                   {device.colors.map((color) => (
                     <button type="button" key={color.id} className={colorId === color.id ? "selected" : ""} aria-pressed={colorId === color.id} onClick={() => { setColorId(color.id); setActivePhotoKey(""); }}>
-                      <span className={`detail-color-chip${color.hex_code ? "" : " uncolored"}`} style={color.hex_code ? { backgroundColor: color.hex_code } : undefined} aria-hidden="true" />
+                      <span className={`detail-color-chip${representativeFinishHex(color.name, color.hex_code) ? "" : " uncolored"}`} style={representativeFinishHex(color.name, color.hex_code) ? { backgroundColor: representativeFinishHex(color.name, color.hex_code) ?? undefined } : undefined} aria-hidden="true" />
                       {color.name}
                     </button>
                   ))}
                 </div>
+                <p className="detail-image-note">Color chips are representative shades unless a verified finish color is available.</p>
                 {photoSelection.isRepresentative && (
                   <p className="detail-image-note">{visiblePhotos.length ? "Generic product photos shown; this finish may look different." : "No photograph of this finish is available yet."}</p>
                 )}
@@ -184,7 +186,7 @@ export function PhoneDetail({ device, onClose }: Props) {
         {(device.specification_sections?.length ?? 0) > 0 && (
           <section className="structured-specs">
             <div className="detail-section-heading">
-              <div><p className="eyebrow">Full specification</p><h3>Everything you need to know</h3></div>
+              <div><p className="eyebrow">Documented specification</p><h3>Available technical details</h3></div>
             </div>
             {device.specification_sections?.map((section) => (
               <div className="spec-section" key={section.id}>
