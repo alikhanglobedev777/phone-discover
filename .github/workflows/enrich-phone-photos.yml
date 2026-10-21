@@ -1,0 +1,54 @@
+name: Discover licensed product photos
+on:
+  workflow_dispatch:
+    inputs:
+      start:
+        description: "Start at this model index (0 for full catalog)"
+        type: number
+        required: true
+        default: 0
+      limit:
+        description: "Number of models to check (2500 covers the complete curated catalog)"
+        type: number
+        required: true
+        default: 2500
+      commit_manifest:
+        description: "Commit only the licensed-photo manifest to main for Render"
+        type: boolean
+        required: true
+        default: true
+permissions:
+  contents: write
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Checkout latest main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+      - name: Test exact model matching and license checks
+        run: python -m unittest discover -s backend/scripts -p 'test_find_commons_phone_photos.py'
+      - name: Research exact-model, freely licensed product photography
+        run: |
+          python backend/scripts/find_commons_phone_photos.py backend/data/phones_import_ready.csv --output backend/data/commons_phone_photos.csv --start ${{ inputs.start }} --limit ${{ inputs.limit }}
+      - name: Upload found photos with provenance
+        uses: actions/upload-artifact@v4
+        with:
+          name: licensed-phone-photo-manifest
+          path: backend/data/commons_phone_photos.csv
+          if-no-files-found: error
+      - name: Commit verified-photo manifest, no database changes
+        if: ${{ inputs.commit_manifest }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/data/commons_phone_photos.csv
+          if git diff --cached --quiet; then
+            echo "Media manifest unchanged."
+          else
+            git commit -m "Add exact-model licensed phone image manifest"
+            git push origin HEAD:main
+          fi
