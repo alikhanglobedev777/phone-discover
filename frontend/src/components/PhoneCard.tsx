@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { Device } from "../types";
 
 type Props = {
@@ -7,17 +8,26 @@ type Props = {
   onOpen: () => void;
 };
 
+const MISSING_PHOTO = "/phone-photo-pending.svg";
+
 export function PhoneCard({ device, selected, onSelect, onOpen }: Props) {
   const releaseYear = device.release_date?.slice(0, 4);
+  const [photoFailed, setPhotoFailed] = useState(false);
+  useEffect(() => setPhotoFailed(false), [device.id, device.primary_image_url]);
+  const hasPhoto = Boolean(device.primary_image_url?.trim()) && !photoFailed;
+  const variantsCount = device.variants_count ?? device.variants?.length ?? 0;
+  const colors = device.colors ?? [];
 
   return (
     <article className={`phone-card ${selected ? "phone-card-selected" : ""}`}>
       <div className="phone-art">
-        {device.primary_image_url ? (
-          <img src={device.primary_image_url} alt={`${device.brand.name} ${device.name}`} loading="lazy" />
-        ) : (
-          <span aria-hidden="true">{device.brand.name.slice(0, 1)}</span>
-        )}
+        <img
+          src={hasPhoto ? device.primary_image_url : MISSING_PHOTO}
+          alt={hasPhoto ? `${device.brand.name} ${device.name}` : "Phone photo not yet available"}
+          loading="lazy"
+          onError={() => setPhotoFailed(true)}
+        />
+        {!hasPhoto && <span className="photo-pending-label">Photo pending</span>}
         <span className={`status-badge status-${device.status}`}>{device.status}</span>
       </div>
       <div className="phone-card-body">
@@ -32,6 +42,21 @@ export function PhoneCard({ device, selected, onSelect, onOpen }: Props) {
           {device.operating_system && <span>{device.operating_system}</span>}
           {device.lowest_price?.country_code && <span>{device.lowest_price.country_code} offer</span>}
         </div>
+        {colors.length > 0 && (
+          <div className="phone-card-colors" aria-label="Documented phone colors">
+            {colors.slice(0, 5).map((color) => (
+              <span key={color.id} className="phone-card-color" title={color.name}>
+                <span
+                  className={`phone-card-color-dot${color.hex_code ? "" : " no-color-hex"}`}
+                  style={color.hex_code ? { backgroundColor: color.hex_code } : undefined}
+                  aria-hidden="true"
+                />
+                <span>{color.name}</span>
+              </span>
+            ))}
+            {colors.length > 5 && <span className="muted">+{colors.length - 5}</span>}
+          </div>
+        )}
         <div className="card-footer">
           <div className="price-block">
             <span>{device.lowest_price?.evidence_type ? "Observed asking price" : "Reference catalog offer"}</span>
@@ -43,6 +68,15 @@ export function PhoneCard({ device, selected, onSelect, onOpen }: Props) {
           </div>
           <button className="text-button" type="button" onClick={onOpen} aria-label={`View details for ${device.name}`}>View details →</button>
         </div>
+        <button
+          className="phone-variants-button"
+          type="button"
+          onClick={onOpen}
+          aria-label={`View ${variantsCount} RAM and storage variants for ${device.brand.name} ${device.name}`}
+        >
+          <span>Variants ({variantsCount})</span>
+          <span aria-hidden="true">→</span>
+        </button>
         <label className={`compare-check ${selected ? "compare-check-selected" : ""}`}>
           <input type="checkbox" checked={selected} onChange={onSelect} />
           {selected ? "Added to comparison" : "Add to comparison"}
