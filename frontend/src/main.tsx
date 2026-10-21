@@ -8,6 +8,7 @@ import "./brand-refresh.css";
 import "./detail-modal.css";
 import "./device-gallery.css";
 import "./compare-page.css";
+import "./home-enhancements.css";
 
 const queryClient = new QueryClient();
 
