@@ -75,6 +75,7 @@ export type Device = {
   release_date: string | null;
   operating_system: string;
   primary_image_url: string;
+  variants_count?: number;
   lowest_price: { price: string; currency: string; country_code: string; evidence_type?: string } | null;
   official_url?: string;
   specifications?: Record<string, unknown>;
