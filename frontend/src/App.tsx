@@ -1,6 +1,6 @@
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useInfiniteQuery, useQueries, useQuery } from "@tanstack/react-query";
-import { getBrands, getDevice, getDevices } from "./lib/api";
+import { getBrands, getDevice, getDevices, getLatestDevices } from "./lib/api";
 import { CatalogFilters } from "./components/CatalogFilters";
 import { ComparisonPage } from "./components/ComparisonPage";
 import { ComparisonTray } from "./components/ComparisonTray";
@@ -73,7 +73,7 @@ export default function App() {
   // released available phones, even when browsing an older or different brand.
   const latestQuery = useQuery({
     queryKey: ["latest-available-phones"],
-    queryFn: () => getDevices({ ...EMPTY_FILTERS, status: "available" }, 1),
+    queryFn: getLatestDevices,
     staleTime: 5 * 60_000,
   });
   const activeQuery = useQuery({
@@ -199,7 +199,7 @@ export default function App() {
         </div>
       </section>
       <LatestPhones
-        phones={latestQuery.data?.results ?? []}
+        phones={latestQuery.data ?? []}
         isLoading={latestQuery.isPending}
         isError={latestQuery.isError}
         onRetry={() => void latestQuery.refetch()}
