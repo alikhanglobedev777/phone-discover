@@ -164,6 +164,7 @@ def image_url_approved(brand, url):
         info = urlsplit(url)
         return (info.scheme == "https" and under(info.hostname, MEDIA_DOMAINS[brand])
                 and not info.username and not info.password
+                and not info.query and not info.fragment
                 and info.path.casefold().endswith((".jpg", ".jpeg", ".png", ".webp")))
     except ValueError:
         return False
@@ -196,10 +197,14 @@ class PoliteFetch:
             time.sleep(1 - gap)
         self.last[domain] = time.monotonic()
         try:
-            req = Request(url, headers={"User-Agent": USER_AGENT,
-                                        "Accept": "text/html" if mime == "html"
-                                        else "image/jpeg,image/png,image/webp",
-                                        "Range": "bytes=0-4095"})
+            headers = {
+                "User-Agent": USER_AGENT,
+                "Accept": "text/html" if mime == "html"
+                          else "image/jpeg,image/png,image/webp",
+            }
+            if mime != "html":
+                headers["Range"] = "bytes=0-4095"
+            req = Request(url, headers=headers)
             with urlopen(req, timeout=12) as response:
                 final = response.geturl()
                 if (urlsplit(final).hostname != domain or
