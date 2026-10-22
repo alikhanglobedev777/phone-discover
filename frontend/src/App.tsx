@@ -1,6 +1,8 @@
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useInfiniteQuery, useQueries, useQuery } from "@tanstack/react-query";
-import { getBrands, getDevice, getDevices, getLatestDevices } from "./lib/api";
+import { getBrands, getDevice, getDevices, getLatestDevices, getPhoneSearchIndex } from "./lib/api";
+import { readCachedSearchIndex, searchCachedPhones, storeSearchIndex } from "./lib/catalogSearch";
+import { PhoneSearchResults } from "./components/PhoneSearchResults";
 import { CatalogFilters } from "./components/CatalogFilters";
 import { ComparisonPage } from "./components/ComparisonPage";
 import { ComparisonTray } from "./components/ComparisonTray";
@@ -50,6 +52,7 @@ function initialComparisonSlugs() {
 
 export default function App() {
   const [filters, setFilters] = useState<DeviceFilters>(EMPTY_FILTERS);
+  const [initialSearchIndex] = useState(readCachedSearchIndex);
   const [activeSlug, setActiveSlug] = useState<string | null>(() => new URLSearchParams(window.location.search).get("device"));
   const [compareSlugs, setCompareSlugs] = useState<string[]>(initialComparisonSlugs);
   const [comparisonNotice, setComparisonNotice] = useState("");
@@ -69,6 +72,24 @@ export default function App() {
     getNextPageParam: (lastPage, allPages) => lastPage.next ? allPages.length + 1 : undefined,
   });
   const brandsQuery = useQuery({ queryKey: ["brands"], queryFn: getBrands });
+  // Names and model thumbnails are small enough to cache locally. Suggestions
+  // render immediately on every keystroke; server filters remain authoritative.
+  const searchIndexQuery = useQuery({
+    queryKey: ["phone-search-index-v1"],
+    queryFn: getPhoneSearchIndex,
+    initialData: initialSearchIndex?.entries,
+    initialDataUpdatedAt: initialSearchIndex?.savedAt,
+    staleTime: 60 * 60_000,
+    gcTime: 24 * 60 * 60_000,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
+  const instantMatches = useMemo(
+    () => searchCachedPhones(
+      searchIndexQuery.data ?? [], filters.search, filters.brand, 8,
+    ),
+    [searchIndexQuery.data, filters.search, filters.brand],
+  );
   // Separate from user-selected catalog filters: always shows most recently
   // released available phones, even when browsing an older or different brand.
   const latestQuery = useQuery({
@@ -92,6 +113,12 @@ export default function App() {
   const deviceCount = devicesQuery.data?.pages[0]?.count ?? 0;
   const compareDevices = comparisonQueries.flatMap((query) => query.data ? [query.data] : []);
   const comparisonLoading = comparisonQueries.some((query) => query.isLoading);
+
+  useEffect(() => {
+    if (searchIndexQuery.data && searchIndexQuery.dataUpdatedAt) {
+      storeSearchIndex(searchIndexQuery.data, searchIndexQuery.dataUpdatedAt);
+    }
+  }, [searchIndexQuery.data, searchIndexQuery.dataUpdatedAt]);
 
   useEffect(() => {
     try {
@@ -200,6 +227,8 @@ export default function App() {
                 placeholder="Search Pixel, iPhone, Samsung, Redmi…"/>
               <button type="submit">Search phones <span aria-hidden="true">→</span></button>
             </div>
+            <PhoneSearchResults query={filters.search} entries={instantMatches}
+              ready={Boolean(searchIndexQuery.data)} onOpen={setActiveSlug} />
             <span className="hero-local-search-note">Searches the phones in our own catalog — no external search engine.</span>
           </form>
           <p className="hero-smallprint">Explore freely · Compare up to three phones · Price evidence clearly labeled</p>
@@ -241,6 +270,9 @@ export default function App() {
           filters={filters}
           onChange={setFilters}
           onReset={() => setFilters(EMPTY_FILTERS)}
+          searchMatches={instantMatches}
+          searchReady={Boolean(searchIndexQuery.data)}
+          onOpenPhone={setActiveSlug}
         />
         <p className="pk-market-disclaimer">Catalog offers may be in different currencies and are not directly comparable. For evidence-backed Pakistan prices, use the PKR market search below.</p>
         {devicesQuery.isLoading && <p className="state-message">Loading phones…</p>}
