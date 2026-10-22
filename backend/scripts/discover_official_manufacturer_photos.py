@@ -48,7 +48,9 @@ def under(host, allowed):
 
 
 def tokens(s):
-    return tuple(re.findall(r"[a-z0-9]+", s.casefold()))
+    # "+" is a marketed edition distinction (e.g. Note 40 Pro vs Pro+),
+    # not ignorable punctuation when checking exact manufacturer identity.
+    return tuple(re.findall(r"[a-z0-9]+", s.casefold().replace("+", " plus ")))
 
 
 def exact_manufacturer_title(title, brand, name):
