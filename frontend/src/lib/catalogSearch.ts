@@ -4,6 +4,7 @@ export type PhoneSearchEntry = {
   name: string;
   brand: string;
   brand_slug: string;
+  image_url: string;
 };
 
 type StoredIndex = {
@@ -28,7 +29,8 @@ export function readCachedSearchIndex(): StoredIndex | null {
         saved.entries.length > 10000 ||
         !saved.entries.every((entry) =>
           typeof entry.slug === "string" && typeof entry.name === "string" &&
-          typeof entry.brand === "string" && typeof entry.brand_slug === "string")) {
+          typeof entry.brand === "string" && typeof entry.brand_slug === "string" &&
+          typeof entry.image_url === "string")) {
       window.localStorage.removeItem(KEY);
       return null;
     }
