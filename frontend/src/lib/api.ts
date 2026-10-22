@@ -1,3 +1,4 @@
+import type { PhoneSearchEntry } from "./catalogSearch";
 import type { Brand, Device, DeviceFilters, Paginated } from "../types";
 import { apiUrl } from "./apiUrl.ts";
 
@@ -14,6 +15,10 @@ export function getDevices(filters: DeviceFilters, page = 1) {
   });
   query.set("page", String(page));
   return request<Paginated<Device>>(`/api/catalog/devices/?${query.toString()}`);
+}
+
+export function getPhoneSearchIndex() {
+  return request<PhoneSearchEntry[]>("/api/catalog/devices/search-index/");
 }
 
 export function getLatestDevices() {
