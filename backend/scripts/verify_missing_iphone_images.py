@@ -47,7 +47,7 @@ def valid_apple_jpeg_response(url, opener=urlopen):
                     "image/jpeg", "image/jpg"):
                 return False
             first = response.read(32768)
-            return first.startswith(b"\\xff\\xd8\\xff") and len(first) > 4000
+            return first.startswith(b"\xff\xd8\xff") and len(first) > 4000
     except (HTTPError, URLError, TimeoutError, OSError, ValueError):
         return False
 
