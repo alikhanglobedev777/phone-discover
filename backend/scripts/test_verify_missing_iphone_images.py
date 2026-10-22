@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 from verify_missing_iphone_images import (
-    MODELS, VERIFICATION, sources_for, verify,
+    MODELS, VERIFICATION, sources_for, verify, valid_apple_jpeg_response,
 )
 
 
@@ -31,6 +31,26 @@ class AppleGalleryTests(unittest.TestCase):
         self.assertTrue(any("iphone-se-2020" in u for u in p2))
         self.assertTrue(any("iphone-se-2022" in u for u in p3))
         self.assertTrue(set(p2).isdisjoint(set(p3)))
+
+    def test_apple_jpeg_validator_requires_real_apple_photo_response(self):
+        image = "https://fdn2.gsmarena.com/vv/pics/apple/apple-iphone-16-1.jpg"
+
+        class DummyResponse:
+            headers = {"Content-Type": "image/jpeg"}
+            def geturl(self):
+                return image
+            def read(self, size):
+                return bytes.fromhex("ffd8ff") + bytes(5000)
+            def __enter__(self):
+                return self
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+        self.assertTrue(valid_apple_jpeg_response(
+            image, opener=lambda req, timeout: DummyResponse()))
+        self.assertFalse(valid_apple_jpeg_response(
+            image.replace("/apple/", "/google/"),
+            opener=lambda req, timeout: self.fail("wrong manufacturer must be blocked")))
 
     def test_only_http_verified_images_are_published_and_grouped_by_model(self):
         with tempfile.TemporaryDirectory() as t:
