@@ -1,5 +1,9 @@
 name: Recover official manufacturer photos for still-missing phones
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/recover-original-manufacturer-phone-images.yml'
   workflow_run:
     workflows:
       - Recover remaining image-less phone cards
