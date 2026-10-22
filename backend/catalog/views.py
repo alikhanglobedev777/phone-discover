@@ -56,6 +56,25 @@ class DeviceViewSet(viewsets.ReadOnlyModelViewSet):
             return DeviceDetailSerializer
         return DeviceListSerializer
 
+    @action(detail=False, methods=["get"], url_path="search-index")
+    def search_index(self, request):
+        """Small public index for instant, browser-cached phone name searches.
+
+        The index contains no prices, private details, or fabricated values.
+        Detailed filtering and pricing still use the authoritative list API.
+        """
+        matches = (
+            Device.objects.filter(is_published=True)
+            .order_by("brand__name", "name", "id")
+            .values_list("slug", "name", "brand__name", "brand__slug")
+        )
+        response = Response([
+            {"slug": slug, "name": name, "brand": brand, "brand_slug": brand_slug}
+            for slug, name, brand, brand_slug in matches
+        ])
+        response["Cache-Control"] = "public, max-age=300"
+        return response
+
     @action(detail=False, methods=["get"], url_path="latest")
     def latest(self, request):
         """Latest actually released models, never null or future dates.
