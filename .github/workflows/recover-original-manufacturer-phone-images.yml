@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   source_scan:
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
     name: Official photo ${{ matrix.brand }} part ${{ matrix.part }}
     runs-on: ubuntu-latest
     timeout-minutes: 100
