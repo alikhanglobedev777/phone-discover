@@ -13,7 +13,43 @@ import csv
 import json
 from pathlib import Path
 
-from probe_pixel_product_images import valid_jpeg_response
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlsplit
+from urllib.request import Request, urlopen
+
+
+def valid_apple_jpeg_response(url, opener=urlopen):
+    """Require a real Apple GSMArena JPEG, not merely a plausible URL.
+
+    The older Google-only validator deliberately rejects /vv/pics/apple/;
+    source hosts and product folder are checked here independently.
+    """
+    parsed = urlsplit(url)
+    if (parsed.scheme != "https" or
+            parsed.hostname != "fdn2.gsmarena.com" or
+            not parsed.path.startswith("/vv/pics/apple/") or
+            not parsed.path.lower().endswith(".jpg") or
+            parsed.query or parsed.fragment):
+        return False
+    try:
+        req = Request(url, headers={
+            "User-Agent": "PhoneDiscoverImageCatalog/1.0 (+https://github.com/alikhanglobedev777/phone-discover)",
+            "Accept": "image/jpeg",
+            "Range": "bytes=0-32767",
+        })
+        with opener(req, timeout=12) as response:
+            finished = urlsplit(response.geturl())
+            if (finished.scheme != "https" or
+                    finished.hostname != "fdn2.gsmarena.com" or
+                    not finished.path.startswith("/vv/pics/apple/")):
+                return False
+            if response.headers.get("Content-Type", "").split(";")[0].strip().lower() not in (
+                    "image/jpeg", "image/jpg"):
+                return False
+            first = response.read(32768)
+            return first.startswith(b"\\xff\\xd8\\xff") and len(first) > 4000
+    except (HTTPError, URLError, TimeoutError, OSError, ValueError):
+        return False
 
 # Canonical full identity, GSMArena published official-pictures gallery, CDN
 # filename root, and exact catalog entries. The "UW" edition is a same-model
@@ -72,7 +108,7 @@ def sources_for(model):
         yield f"https://fdn2.gsmarena.com/vv/pics/apple/{root}{suffix}.jpg"
 
 
-def verify(gap_path, output_path, checker=valid_jpeg_response):
+def verify(gap_path, output_path, checker=valid_apple_jpeg_response):
     with Path(gap_path).open(encoding="utf-8-sig", newline="") as f:
         reader = csv.DictReader(f)
         if not {"brand", "device"}.issubset(reader.fieldnames or []):
