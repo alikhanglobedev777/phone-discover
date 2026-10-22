@@ -4,6 +4,8 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/fill-remaining-iphone-product-images.yml'
+      - 'backend/scripts/verify_missing_iphone_images.py'
+      - 'backend/scripts/test_verify_missing_iphone_images.py'
   workflow_dispatch:
 permissions:
   contents: write
