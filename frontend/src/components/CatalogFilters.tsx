@@ -1,13 +1,18 @@
 import type { Brand, DeviceFilters } from "../types";
+import type { PhoneSearchEntry } from "../lib/catalogSearch";
+import { PhoneSearchResults } from "./PhoneSearchResults";
 
 type Props = {
   brands: Brand[];
   filters: DeviceFilters;
   onChange: (filters: DeviceFilters) => void;
   onReset: () => void;
+  searchMatches: PhoneSearchEntry[];
+  searchReady: boolean;
+  onOpenPhone: (slug: string) => void;
 };
 
-export function CatalogFilters({ brands, filters, onChange, onReset }: Props) {
+export function CatalogFilters({ brands, filters, onChange, onReset, searchMatches, searchReady, onOpenPhone }: Props) {
   function update(name: keyof DeviceFilters, value: string) {
     onChange({ ...filters, [name]: value });
   }
@@ -45,6 +50,12 @@ export function CatalogFilters({ brands, filters, onChange, onReset }: Props) {
           </select>
         </label>
       </div>
+      {filters.search.trim() && (
+        <div className="catalog-search-suggestions">
+          <PhoneSearchResults query={filters.search} entries={searchMatches}
+            ready={searchReady} onOpen={onOpenPhone} />
+        </div>
+      )}
       <details className="filter-advanced">
         <summary>More filters {advancedCount ? `· ${advancedCount} applied` : ""}<span aria-hidden="true">⌄</span></summary>
         <div className="filter-grid">
