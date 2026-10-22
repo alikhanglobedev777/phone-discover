@@ -39,11 +39,12 @@ export function PhoneCard({ device, selected, onSelect, onOpen }: Props) {
         <span className={`status-badge status-${device.status}`}>{device.status}</span>
       </div>
       <div className="phone-card-body">
+        <div className="phone-card-upper">
         <div className="phone-meta-line">
           <p className="muted">{device.brand.name}</p>
           {releaseYear && <span>{releaseYear}</span>}
         </div>
-        <h3>{device.name}</h3>
+        <h3 title={device.name}>{device.name}</h3>
         {device.data_source === "web_research" && <p className="pk-evidence-note">Web researched · source-reported facts</p>}
         {device.summary?.trim() && <p className="card-summary">{device.summary}</p>}
         {(device.operating_system || device.lowest_price?.country_code) && (
@@ -67,6 +68,8 @@ export function PhoneCard({ device, selected, onSelect, onOpen }: Props) {
             {colors.length > 5 && <span className="muted">+{colors.length - 5}</span>}
           </div>
         )}
+        </div>
+        <div className="phone-card-lower">
         <div className="card-footer">
           <div className="price-block">
             <span>{device.lowest_price?.evidence_type ? "Observed asking price" : "Reference catalog offer"}</span>
@@ -91,6 +94,7 @@ export function PhoneCard({ device, selected, onSelect, onOpen }: Props) {
           <input type="checkbox" checked={selected} onChange={onSelect} />
           {selected ? "Added to comparison" : "Add to comparison"}
         </label>
+        </div>
       </div>
     </article>
   );
