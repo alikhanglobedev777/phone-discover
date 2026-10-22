@@ -1,0 +1,102 @@
+name: Recover official manufacturer photos for still-missing phones
+on:
+  workflow_run:
+    workflows:
+      - Recover remaining image-less phone cards
+    types: [completed]
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: write
+concurrency:
+  group: original-manufacturer-phone-images
+  cancel-in-progress: false
+jobs:
+  source_scan:
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
+    name: Official photo ${{ matrix.brand }} part ${{ matrix.part }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        brand: [Infinix, Tecno, Motorola, Vivo, Oppo, Xiaomi]
+        part: [0, 1]
+    steps:
+      - name: Read exact production image-gap catalog on main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Test exact-model official pages and safe image hosts
+        run: |
+          python -m unittest discover -s backend/scripts -p 'test_discover_official_manufacturer_photos.py'
+          python -m py_compile backend/scripts/merge_official_manufacturer_photos.py
+      - name: Check allowed manufacturer product pages and real image bytes
+        run: |
+          mkdir -p shards
+          brand=${{ matrix.brand }}
+          lower=$(echo "$brand" | tr '[:upper:]' '[:lower:]')
+          python backend/scripts/discover_official_manufacturer_photos.py \
+            backend/data/phone_image_gap_2026_10_22.csv --brand "$brand" \
+            --part ${{ matrix.part }} --parts 2 --output "shards/$lower-${{ matrix.part }}.csv"
+      - name: Save transparent verification reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: official-photo-${{ matrix.brand }}-${{ matrix.part }}
+          path: shards/*.csv
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Add exact manufacturer media to image-less phones
+    needs: source_scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout latest main, including second-pass import
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+      - name: Recover manufacturer source reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: official-photo-*
+          merge-multiple: true
+          path: shards
+      - name: Confirm exact products and no shared incorrect pictures
+        run: |
+          python -m unittest discover -s backend/scripts -p 'test_discover_official_manufacturer_photos.py'
+          python backend/scripts/merge_official_manufacturer_photos.py \
+            shards backend/data/phone_image_gap_2026_10_22.csv \
+            --parts 2 --output backend/data/verified_manufacturer_photos.csv
+      - name: Determine whether any usable manufacturer photos exist
+        id: coverage
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import csv
+          with open("backend/data/verified_manufacturer_photos.csv", encoding="utf-8") as f:
+              rows = list(csv.DictReader(f))
+          print(f"found={len(rows)}")
+          PY
+      - name: Prepare one-time additive Django migration
+        if: steps.coverage.outputs.found != '0'
+        run: |
+          test -f backend/catalog/migrations/0027_backfill_verified_remaining_phone_images.py
+          cp backend/scripts/official_manufacturer_photo_migration_template.txt \
+            backend/catalog/migrations/0028_backfill_exact_manufacturer_images.py
+          python -m py_compile backend/catalog/migrations/0028_backfill_exact_manufacturer_images.py
+      - name: Commit only source-verified manufacturer images and migration
+        if: steps.coverage.outputs.found != '0'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/data/verified_manufacturer_photos.csv backend/catalog/migrations/0028_backfill_exact_manufacturer_images.py
+          if git diff --cached --quiet; then
+            echo "No new verified manufacturer imagery"
+          else
+            git commit -m "Backfill missing catalog photos from exact manufacturer product pages"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
