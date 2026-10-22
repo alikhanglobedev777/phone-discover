@@ -66,11 +66,12 @@ class DeviceViewSet(viewsets.ReadOnlyModelViewSet):
         matches = (
             Device.objects.filter(is_published=True)
             .order_by("brand__name", "name", "id")
-            .values_list("slug", "name", "brand__name", "brand__slug")
+            .values_list("slug", "name", "brand__name", "brand__slug", "primary_image_url")
         )
         response = Response([
-            {"slug": slug, "name": name, "brand": brand, "brand_slug": brand_slug}
-            for slug, name, brand, brand_slug in matches
+            {"slug": slug, "name": name, "brand": brand, "brand_slug": brand_slug,
+             "image_url": image_url}
+            for slug, name, brand, brand_slug, image_url in matches
         ])
         response["Cache-Control"] = "public, max-age=300"
         return response
