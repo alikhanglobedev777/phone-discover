@@ -1,0 +1,71 @@
+name: Fill remaining iPhone cards with verified official product images
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fill-remaining-iphone-product-images.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: verified-missing-iphone-photos
+  cancel-in-progress: false
+
+jobs:
+  validate_and_publish:
+    name: Verify exact iPhone GSMArena galleries and commit image import
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout complete Apple catalog and importer
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+      - name: Check exact iPhone identity and source isolation tests
+        run: |
+          python -m unittest discover -s backend/scripts -p 'test_verify_missing_iphone_images.py'
+          python -m py_compile backend/scripts/verify_missing_iphone_images.py
+          python -m py_compile backend/scripts/verified_iphone_photo_migration_template.txt
+      - name: Check GSMArena official images for real product JPEG responses
+        run: |
+          python backend/scripts/verify_missing_iphone_images.py \
+            backend/data/phone_image_gap_2026_10_22.csv \
+            --output backend/data/verified_missing_iphone_images.csv
+      - name: Upload independent image and page identity evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-apple-iphone-product-photos
+          path: backend/data/verified_missing_iphone_images.csv
+          if-no-files-found: error
+          retention-days: 14
+      - name: Refuse empty/unverified import and prepare additive migration
+        run: |
+          python - <<'PY'
+          import csv
+          import json
+          with open("backend/data/verified_missing_iphone_images.csv", newline="", encoding="utf-8") as f:
+              rows = list(csv.DictReader(f))
+          if not rows:
+              raise SystemExit("No actual GSMArena iPhone JPEGs verified; no production changes.")
+          print("Verified iPhone catalog variants:", len(rows))
+          print("Models:", sorted(set(r["canonical_model"] for r in rows)))
+          print("Gallery images:", sum(len(json.loads(r["image_urls"])) for r in rows))
+          PY
+          test -f backend/catalog/migrations/0029_reuse_identical_iphone_storage_photos.py
+          cp backend/scripts/verified_iphone_photo_migration_template.txt \
+            backend/catalog/migrations/0030_import_verified_missing_iphone_photos.py
+          python -m py_compile backend/catalog/migrations/0030_import_verified_missing_iphone_photos.py
+      - name: Publish validated images and matching importer for Render
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/data/verified_missing_iphone_images.csv \
+            backend/catalog/migrations/0030_import_verified_missing_iphone_photos.py
+          if git diff --cached --quiet; then
+            echo "The verified iPhone photo import is already committed"
+          else
+            git commit -m "Fill remaining Apple iPhone cards from exact verified GSMArena product photos"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
