@@ -205,6 +205,32 @@ class PakistanLocalRecommendationTests(TestCase):
         self.assertEqual(camera.data["results"][0]["device"]["slug"], "samsung-lens")
         self.assertEqual(gaming.data["results"][0]["device"]["slug"], "orion-play")
 
+    def test_best_under_one_lac_does_not_reward_cheapest_phone(self):
+        """Quality evidence, not unused budget, should determine a generic shortlist."""
+        self.price(variant=self.a_high, price_min_pkr=Decimal("95000"), price_max_pkr=Decimal("99000"))
+        self.price(variant=self.a_low, price_min_pkr=Decimal("35000"), price_max_pkr=Decimal("40000"))
+        self.price(variant=self.b_variant, price_min_pkr=Decimal("85000"), price_max_pkr=Decimal("90000"))
+        response = self.ask("tell me about the best phone under 1 lac")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["criteria"]["budget_pkr"], "100000")
+        self.assertEqual(response.data["results"][0]["device"]["slug"], "orion-play")
+        self.assertIn("provisional", response.data["explanation"].lower()) if response.data["results"][0]["missing_score_evidence"] else self.assertIn("catalog scoring", response.data["explanation"].lower())
+        self.assertIn("observed asking", response.data["explanation"].lower())
+
+    def test_missing_scores_do_not_claim_verified_best_phone(self):
+        variant = DeviceVariant.objects.create(
+            device=self.a, name="16GB/512GB", ram_gb=16, storage_gb=512,
+            camera_score=0, gaming_score=0, battery_score=0, display_refresh_hz=0,
+        )
+        self.price(variant=variant, price_min_pkr=Decimal("80000"), price_max_pkr=Decimal("85000"))
+        response = self.ask("best phone under 1 lac")
+        self.assertEqual(response.status_code, 200)
+        first = response.data["results"][0]
+        self.assertIsNone(first["fit_score"])
+        self.assertFalse(first["recommended"])
+        self.assertIn("provisional", response.data["explanation"].lower())
+        self.assertIn("16 GB RAM", response.data["explanation"])
+
     def test_inferred_brand_is_respected(self):
         self.price()
         self.price(variant=self.b_variant)

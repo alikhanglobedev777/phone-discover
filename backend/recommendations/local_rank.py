@@ -69,9 +69,10 @@ def _quality_scores(variant: dict, price: dict | None, budget: Decimal | None):
 
 
 def _fit_score(scores, priorities, budget):
+    # A general "best phone under X" request asks for phone quality, not the
+    # cheapest item. Price is an eligibility limit, not a fifth performance
+    # benchmark that automatically rewards spending less.
     dimensions = list(dict.fromkeys(priorities)) if priorities else ["camera", "gaming", "battery", "display"]
-    if budget is not None and not priorities:
-        dimensions.append("value")
     known = [key for key in dimensions if scores[key] is not None]
     missing = [key for key in dimensions if scores[key] is None]
     # Re-normalization to available signals must not be presented as high
@@ -135,6 +136,13 @@ def rank_pakistan_phones(criteria: dict, *, reference_location_only=False):
             f"{key.title()} catalog fit {scores[key]:.0f}/100"
             for key in sorted(known, key=lambda k: scores[k], reverse=True)[:2]
         ]
+        # If editorial quality scores are missing, show verified catalog
+        # attributes rather than implying that price measures performance.
+        if not strengths:
+            if card["variant"].get("ram_gb"):
+                strengths.append(f'{card["variant"]["ram_gb"]} GB RAM (catalog spec)')
+            if card["variant"].get("storage_gb"):
+                strengths.append(f'{card["variant"]["storage_gb"]} GB storage (catalog spec)')
         tradeoffs = []
         if price["evidence_type"] == "web_researched":
             tradeoffs.append("Web-researched price and specifications; not independently reviewed")
@@ -170,14 +178,21 @@ def rank_pakistan_phones(criteria: dict, *, reference_location_only=False):
         missing_count = len(item["missing_score_evidence"])
         # An unknown score must not outrank a well-evidenced phone merely
         # because the available dimensions average high.
-        return (item["fit_score"] is None, missing_count, -(item["fit_score"] or 0), high,
+        variant = item["variant"]
+        # With zero usable quality scores, prefer visible RAM/storage
+        # capability over picking the cheapest handset by default. This is
+        # only a preliminary specs-based ordering, not a performance verdict.
+        return (item["fit_score"] is None, missing_count, -(item["fit_score"] or 0),
+                -int(variant.get("ram_gb") or 0), -int(variant.get("storage_gb") or 0),
+                -int(variant.get("display_refresh_hz") or 0), high,
                 item["device"]["slug"])
 
     ranked.sort(key=ordering)
     shortlisted = ranked[:criteria["max_results"]]
     for index, item in enumerate(shortlisted, 1):
         item["rank"] = index
-        item["recommended"] = index == 1
+        # Never award a "recommended" ribbon from price and memory alone.
+        item["recommended"] = index == 1 and item["fit_score"] is not None and not item["missing_score_evidence"]
     truncated = total_count is not None and total_count > searched
     insufficient = not shortlisted or len(shortlisted) < criteria["max_results"]
     missing_scores = any(item["missing_score_evidence"] for item in shortlisted)
@@ -253,16 +268,50 @@ def local_explanation(criteria, summary):
             explanation += (" Web research ke liye 'Phone Discover Intelligence Web Research' select karein."
                             if roman else " You can select 'Phone Discover Intelligence Web Research' to check external sources.")
         return explanation
-    best = summary["results"][0]
+
+    results = summary["results"]
+    best = results[0]
     name = f"{best['device']['brand']} {best['device']['name']}".strip()
     price = best["market_price"]
-    range_str = f"PKR {price['observed_min_pkr']}–{price['observed_max_pkr']}"
-    if criteria["response_language"] == "roman_urdu":
-        return (f"Local data ke mutabiq {name} aik option hai ({range_str}). "
-                "Yeh observed asking price hai, guaranteed market rate nahi. "
-                "PTA status aur handset condition khud verify karein.")
-    return (
-        f"{name} is a local option matching your filters "
-        f"with an observed asking-price range of {range_str}. "
-        "This is not a live offer; verify handset condition and PTA status independently."
-    )
+    budget = criteria.get("budget_pkr")
+    budget_label = f"PKR {budget:,.0f}" if budget is not None else "your filters"
+    range_str = (f"PKR {Decimal(price['observed_min_pkr']):,.0f}"
+                 if price["observed_min_pkr"] == price["observed_max_pkr"] else
+                 f"PKR {Decimal(price['observed_min_pkr']):,.0f}–{Decimal(price['observed_max_pkr']):,.0f}")
+    missing = best["missing_score_evidence"]
+    complete = bool(best["fit_score"] is not None and not missing)
+    preferences = criteria.get("priorities") or []
+    reasons = ", ".join(best["strengths"][:2])
+    alternative = results[1] if len(results) > 1 else None
+    alternative_name = (f"{alternative['device']['brand']} {alternative['device']['name']}".strip()
+                        if alternative else "")
+    roman = criteria["response_language"] == "roman_urdu"
+
+    if roman:
+        prefix = (f"{budget_label} ke budget mein {len(results)} source-backed price options mile. "
+                  if budget is not None else f"{len(results)} source-backed options mile. ")
+        verdict = (f"Catalog scoring ke mutabiq {name} pehla option hai ({range_str}). "
+                   if complete else
+                   f"{name} ({range_str}) sirf provisional shortlist mein hai, verified best phone nahi. ")
+        details = f"Maloom specs: {reasons}. " if reasons else ""
+        comparison = f"{alternative_name} ko bhi compare karein. " if alternative else ""
+        missing_note = ("Camera/gaming/battery jaise quality scores adhure hain. "
+                        if missing else "")
+        question = ("Camera, gaming, battery ya overall performance mein se aap ki priority kya hai? "
+                    if not preferences else "")
+        return (prefix + verdict + details + comparison + missing_note + question +
+                "Asking prices live offers nahi; PTA aur condition khud verify karein.")
+
+    prefix = (f"I found {len(results)} price-backed options within {budget_label}. "
+              if budget is not None else f"I found {len(results)} price-backed options for your filters. ")
+    verdict = (f"{name} leads the available catalog scoring ({range_str}), not a verified market-wide ranking. "
+               if complete else
+               f"{name} ({range_str}) is only a provisional shortlist pick, not a confirmed best phone. ")
+    details = f"Recorded attributes: {reasons}. " if reasons else ""
+    comparison = f"Also compare {alternative_name}. " if alternative else ""
+    missing_note = (f"Catalog quality evidence is incomplete ({', '.join(missing)}); price alone cannot establish performance. "
+                    if missing else "")
+    question = ("Which matters most: camera, gaming, battery, or overall performance? "
+                if not preferences else "")
+    return (prefix + verdict + details + comparison + missing_note + question +
+            "Prices are observed asking ranges, not live offers; independently check PTA status and condition.")
