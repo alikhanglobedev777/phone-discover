@@ -222,12 +222,26 @@ h1 span { color: var(--wine); font-weight: 570; }
   animation: wine-drawer .24s both;
 }
 .chat-drawer[hidden] { display: none !important; }
+/* Expanded chat uses the entire viewport without remounting the conversation. */
+.chat-drawer.is-expanded {
+  inset: 0;
+  width: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  animation: none;
+}
 .chat-drawer-topbar { display: flex; align-items: center; justify-content: space-between; gap: 15px; flex: 0 0 auto; min-height: 48px; padding: 8px 16px; background: var(--wine); color: #fff; }
 .chat-drawer-topbar > span { font-size: 10px; font-weight: 850; letter-spacing: .11em; }
 .chat-drawer-topbar > span > span { margin-right: 5px; font-size: 17px; }
 .chat-drawer-topbar button { min-height: 33px; padding: 5px 10px; border: 1px solid rgba(255,255,255,.55); border-radius: 8px; background: transparent; color: #fff; font-size: 12px; font-weight: 750; }
 .chat-drawer-topbar button:hover { background: rgba(255,255,255,.15); }
 .chat-drawer-topbar button span { margin-left: 5px; font-size: 18px; vertical-align: -1px; }
+.chat-drawer-topbar .chat-drawer-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.chat-drawer-topbar .chat-drawer-actions button { cursor: pointer; white-space: nowrap; }
+.chat-drawer-topbar .chat-drawer-actions button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .chat-drawer .assistant-card {
   display: flex;
   flex-direction: column;
@@ -283,6 +297,20 @@ h1 span { color: var(--wine); font-weight: 570; }
 .chat-drawer .assistant-composer > div > button:hover:not(:disabled) { background: var(--wine-dark); color: #fff; }
 .chat-drawer .assistant-composer > div > button:disabled { background: #f4e9ed; border-color: #ead4dc; color: #66545b; }
 .chat-drawer .pk-evidence-note, .chat-drawer .pk-research-preview { color: #333; }
+.chat-drawer.is-expanded .chat-stream { padding: clamp(18px, 2.5vw, 38px); }
+.chat-drawer.is-expanded .assistant-composer { padding-inline: clamp(16px, 2.5vw, 38px); }
+/* On larger screens, keep the optional preferences in a side rail. */
+@media (min-width: 900px) {
+  .chat-drawer.is-expanded .assistant-layout { flex-direction: row; }
+  .chat-drawer.is-expanded .assistant-preferences {
+    flex: 0 0 clamp(270px, 27vw, 360px);
+    max-height: none;
+    overflow-y: auto;
+    border-bottom: 0;
+    border-right: 1px solid var(--wine-stroke);
+  }
+  .chat-drawer.is-expanded .assistant-conversation { flex: 1 1 auto; min-width: 0; }
+}
 
 @keyframes wine-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes wine-fade { from { opacity: 0; } to { opacity: 1; } }
@@ -297,7 +325,22 @@ h1 span { color: var(--wine); font-weight: 570; }
   .catalog-section .section-heading { flex-direction: column; align-items: flex-start; }
   .catalog-counter { font-size: 11px; }
   .chat-launcher { right: 12px; bottom: 12px; padding: 8px 12px; min-height: 50px; }
-  .chat-drawer { inset: 0; width: 100%; height: 100dvh; max-height: 100dvh; border: 0; border-radius: 0; }
+  /* Compact mode is a floating sheet on phones; expand switches to full screen. */
+  .chat-drawer:not(.is-expanded) {
+    top: auto;
+    left: max(8px, env(safe-area-inset-left));
+    right: max(8px, env(safe-area-inset-right));
+    bottom: max(8px, env(safe-area-inset-bottom));
+    width: auto;
+    height: min(78dvh, 690px);
+    max-height: calc(100dvh - 16px);
+    border: 1px solid var(--wine-stroke);
+    border-radius: 18px;
+  }
+  .chat-drawer-topbar { padding-inline: 12px; }
+  .chat-drawer-topbar .chat-drawer-actions { gap: 5px; }
+  .chat-drawer-topbar .chat-drawer-actions button { padding-inline: 7px; }
+  .chat-drawer.is-expanded { inset: 0; width: 100%; height: 100dvh; max-height: 100dvh; border: 0; border-radius: 0; }
   .chat-drawer .assistant-header { padding: 11px 14px; }
   .chat-drawer .assistant-header > div > p:last-child { display: none; }
   .chat-drawer .assistant-new-chat { max-width: 120px; }
