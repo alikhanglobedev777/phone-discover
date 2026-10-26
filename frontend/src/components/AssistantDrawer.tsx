@@ -10,6 +10,7 @@ type Props = {
 
 export function AssistantDrawer({ onOpenDevice, onCompareDevice, marketResearchRequest }: Props) {
   const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [hasOpened, setHasOpened] = useState(false);
   const launcherRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
@@ -19,7 +20,7 @@ export function AssistantDrawer({ onOpenDevice, onCompareDevice, marketResearchR
   useEffect(() => {
     if (marketResearchRequest) openDrawer();
   }, [marketResearchRequest]);
-  function closeDrawer() { setOpen(false); }
+  function closeDrawer() { setOpen(false); setExpanded(false); }
 
   useEffect(() => {
     if (!open) return;
@@ -74,11 +75,11 @@ export function AssistantDrawer({ onOpenDevice, onCompareDevice, marketResearchR
       {open && <div className="chat-scrim" aria-hidden="true" onClick={closeDrawer} />}
       {hasOpened && (
         <div
-          className={`chat-drawer ${open ? "is-open" : ""}`}
+          className={`chat-drawer ${open ? "is-open" : ""} ${expanded ? "is-expanded" : ""}`}
           id="phone-assistant-panel"
           role="dialog"
           aria-modal="true"
-          aria-label="Phone Discover assistant"
+          aria-label={expanded ? "Phone Discover assistant full screen" : "Phone Discover assistant"}
           aria-hidden={!open}
           inert={!open}
           hidden={!open}
@@ -87,7 +88,19 @@ export function AssistantDrawer({ onOpenDevice, onCompareDevice, marketResearchR
         >
           <div className="chat-drawer-topbar">
             <span><span aria-hidden="true">✦</span> Phone Discover</span>
-            <button type="button" ref={closeRef} onClick={closeDrawer} aria-label="Close phone assistant">Close <span aria-hidden="true">×</span></button>
+            <div className="chat-drawer-actions">
+              <button
+                type="button"
+                className="chat-resize-button"
+                onClick={() => setExpanded((current) => !current)}
+                aria-label={expanded ? "Minimize phone assistant" : "Expand phone assistant to full screen"}
+                aria-pressed={expanded}
+                title={expanded ? "Back to mini chat" : "Expand to full screen"}
+              >
+                {expanded ? "Minimize ↙" : "Expand ⤢"}
+              </button>
+              <button type="button" ref={closeRef} onClick={closeDrawer} aria-label="Close phone assistant">Close <span aria-hidden="true">×</span></button>
+            </div>
           </div>
           <RecommendationAssistant
             marketResearchRequest={marketResearchRequest}
