@@ -28,6 +28,18 @@ test("assistant remains a right-side dialog with a persistent state and keyboard
   assert.ok(css.includes("position: fixed;"));
   assert.ok(css.includes("right: max(20px"));
 });
+test("assistant toggles mini and full-page views without remounting its chat", () => {
+  assert.match(assistant, /const \[expanded, setExpanded\] = useState\(false\)/);
+  assert.ok(assistant.includes('setExpanded((current) => !current)'));
+  assert.ok(assistant.includes('expanded ? "is-expanded" : ""'));
+  assert.ok(assistant.includes('aria-pressed={expanded}'));
+  assert.ok(assistant.includes('"Expand phone assistant to full screen"'));
+  assert.ok(assistant.includes('"Minimize phone assistant"'));
+  assert.equal((assistant.match(/<RecommendationAssistant\b/g) || []).length, 1);
+  assert.match(css, /\.chat-drawer\.is-expanded\s*\{[^}]*inset: 0;[^}]*height: 100dvh;/s);
+  assert.ok(css.includes(".chat-drawer:not(.is-expanded)"));
+});
+
 test("animations respect reduced motion", () => {
   assert.ok(css.includes("@media (prefers-reduced-motion: reduce)"));
   assert.ok(css.includes("animation: none !important"));
