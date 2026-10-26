@@ -299,10 +299,10 @@ h1 span { color: var(--wine); font-weight: 570; }
 .chat-drawer .pk-evidence-note, .chat-drawer .pk-research-preview { color: #333; }
 .chat-drawer.is-expanded .chat-stream { padding: clamp(18px, 2.5vw, 38px); }
 .chat-drawer.is-expanded .assistant-composer { padding-inline: clamp(16px, 2.5vw, 38px); }
-/* On larger screens, keep the optional preferences in a side rail. */
+/* The fullscreen view stays conversation-first until preferences are opened. */
 @media (min-width: 900px) {
-  .chat-drawer.is-expanded .assistant-layout { flex-direction: row; }
-  .chat-drawer.is-expanded .assistant-preferences {
+  .chat-drawer.is-expanded .assistant-layout:has(.assistant-preferences[open]) { flex-direction: row; }
+  .chat-drawer.is-expanded .assistant-preferences[open] {
     flex: 0 0 clamp(270px, 27vw, 360px);
     max-height: none;
     overflow-y: auto;
