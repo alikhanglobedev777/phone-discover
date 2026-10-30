@@ -219,9 +219,9 @@ export function ComparisonPage({ devices, loading, onClose, onRemove, onAdd, onO
           <ComparisonRow label="Battery" best="max" style={gridStyle} cells={devices.map((device) => ({ content: mainVariant(device)?.battery_mah ? `${mainVariant(device)?.battery_mah} mAh` : "—", numeric: mainVariant(device)?.battery_mah }))} />
 
           <div className="comparison-group-title">Scores</div>
-          <ComparisonRow label="Camera" best="max" style={gridStyle} cells={devices.map((device) => ({ content: `${Number(mainVariant(device)?.camera_score ?? 0).toFixed(0)}/100`, numeric: Number(mainVariant(device)?.camera_score ?? 0) }))} />
-          <ComparisonRow label="Gaming" best="max" style={gridStyle} cells={devices.map((device) => ({ content: `${Number(mainVariant(device)?.gaming_score ?? 0).toFixed(0)}/100`, numeric: Number(mainVariant(device)?.gaming_score ?? 0) }))} />
-          <ComparisonRow label="Battery score" best="max" style={gridStyle} cells={devices.map((device) => ({ content: `${Number(mainVariant(device)?.battery_score ?? 0).toFixed(0)}/100`, numeric: Number(mainVariant(device)?.battery_score ?? 0) }))} />
+          <ComparisonRow label="Camera" best="max" style={gridStyle} cells={devices.map((device) => ({ content: Number(mainVariant(device)?.camera_score ?? 0) > 0 ? `${Number(mainVariant(device)?.camera_score).toFixed(0)}/100` : "Not rated", numeric: Number(mainVariant(device)?.camera_score ?? 0) > 0 ? Number(mainVariant(device)?.camera_score) : null }))} />
+          <ComparisonRow label="Gaming" best="max" style={gridStyle} cells={devices.map((device) => ({ content: Number(mainVariant(device)?.gaming_score ?? 0) > 0 ? `${Number(mainVariant(device)?.gaming_score).toFixed(0)}/100` : "Not rated", numeric: Number(mainVariant(device)?.gaming_score ?? 0) > 0 ? Number(mainVariant(device)?.gaming_score) : null }))} />
+          <ComparisonRow label="Battery score" best="max" style={gridStyle} cells={devices.map((device) => ({ content: Number(mainVariant(device)?.battery_score ?? 0) > 0 ? `${Number(mainVariant(device)?.battery_score).toFixed(0)}/100` : "Not rated", numeric: Number(mainVariant(device)?.battery_score ?? 0) > 0 ? Number(mainVariant(device)?.battery_score) : null }))} />
 
           {specificationRows.length > 0 && <div className="comparison-group-title">Detailed specifications</div>}
           {specificationRows.map((row) => (

@@ -7,7 +7,7 @@ const css = readFileSync(new URL("../src/detail-modal.css", import.meta.url), "u
 const entry = readFileSync(new URL("../src/main.tsx", import.meta.url), "utf8");
 
 test("device detail overrides load after the burgundy design stylesheet", () => {
-  assert.ok(entry.indexOf('import "./detail-modal.css";') > entry.indexOf('import "./brand-refresh.css";'));
+  assert.ok(entry.indexOf('import detailStyles from "./detail-modal.css?inline";') > entry.indexOf('import brandStyles from "./brand-refresh.css?inline";'));
 });
 
 test("detail dialog has a sticky close action and stays inside the viewport", () => {

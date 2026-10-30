@@ -306,3 +306,25 @@ export async function forgetConversation(sessionId: string): Promise<void> {
   });
   if (!response.ok) throw new Error("The saved conversation could not be cleared on the server.");
 }
+
+/** Evidence-backed, DB-only guided finder. No AI or web charges. */
+export type { FinderInput } from "./finder.ts";
+export { buildFinderRequest } from "./finder.ts";
+export type LocalRecommendationResponse = {
+  explanation: string;
+  results: LocalResult[];
+  count: number;
+  coverage_incomplete: boolean;
+  needs_research: boolean;
+};
+export function recommendLocalPhones(
+  request: Record<string, unknown>,
+  signal?: AbortSignal,
+): Promise<LocalRecommendationResponse> {
+  return jsonApi("/api/recommendations/local/", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+    signal,
+  });
+}
