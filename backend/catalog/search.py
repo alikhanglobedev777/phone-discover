@@ -87,6 +87,14 @@ def _rank_key(item, *, sort, query):
     high = price.price_max_pkr if price is not None else Decimal("Infinity")
     low = price.price_min_pkr if price is not None else Decimal("Infinity")
     tie = (high, low, device.name.casefold(), variant.pk)
+    if sort == "recommendation_quality":
+        values = [float(x) for x in (variant.camera_score, variant.gaming_score, variant.battery_score) if x is not None and float(x) > 0]
+        if variant.display_refresh_hz and variant.display_refresh_hz > 0:
+            values.append(min(100.0, variant.display_refresh_hz / 144 * 100))
+        # Choose the best documented variant before device-level deduplication.
+        # Unknown performance never receives a perfect score from a low asking price.
+        return (not bool(values), -len(values), -(sum(values) / len(values) if values else 0),
+                -variant.ram_gb, -variant.storage_gb, *tie)
     if sort == "camera":
         return (-variant.camera_score, *tie)
     if sort == "gaming":
