@@ -308,8 +308,8 @@ export async function forgetConversation(sessionId: string): Promise<void> {
 }
 
 /** Evidence-backed, DB-only guided finder. No AI or web charges. */
-export type { FinderInput } from "./finder";
-export { buildFinderRequest } from "./finder";
+export type { FinderInput } from "./finder.ts";
+export { buildFinderRequest } from "./finder.ts";
 export type LocalRecommendationResponse = {
   explanation: string;
   results: LocalResult[];
