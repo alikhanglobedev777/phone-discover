@@ -38,5 +38,5 @@ test("primary-only products stay single-image with unknown angle", () => {
 
 test("gallery CSS loads after responsive modal sizing", () => {
   const entry = readFileSync(new URL("../src/main.tsx", import.meta.url), "utf8");
-  assert.ok(entry.indexOf('import "./device-gallery.css";') > entry.indexOf('import "./detail-modal.css";'));
+  assert.ok(entry.indexOf('import galleryStyles from "./device-gallery.css?inline";') > entry.indexOf('import detailStyles from "./detail-modal.css?inline";'));
 });
