@@ -85,7 +85,7 @@ def rank_pakistan_phones(criteria: dict, *, reference_location_only=False):
     priorities = criteria["priorities"]
     budget = criteria.get("budget_pkr")
     primary = priorities[0] if priorities else "price"
-    sorting = primary if primary in ("camera", "gaming", "battery") else "price"
+    sorting = primary if primary in ("camera", "gaming", "battery") else "price" if primary == "value" else "recommendation_quality"
     search_params = {
         "require_price": True,
         "sort": sorting,
@@ -131,7 +131,7 @@ def rank_pakistan_phones(criteria: dict, *, reference_location_only=False):
         scores = _quality_scores(card["variant"], card["price_observation"], budget)
         fit, missing = _fit_score(scores, priorities, budget)
         price = card["price_observation"]
-        known = [dimension for dimension in (priorities or DEFAULT_DIMENSIONS) if scores[dimension] is not None]
+        known = [dimension for dimension in (priorities or ("camera", "gaming", "battery", "display")) if scores[dimension] is not None]
         strengths = [
             f"{key.title()} catalog fit {scores[key]:.0f}/100"
             for key in sorted(known, key=lambda k: scores[k], reverse=True)[:2]

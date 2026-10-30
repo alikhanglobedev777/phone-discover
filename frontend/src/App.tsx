@@ -2,6 +2,7 @@ import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useInfiniteQuery, useQueries, useQuery } from "@tanstack/react-query";
 import { getBrands, getDevice, getDevices, getLatestDevices, getPhoneSearchIndex } from "./lib/api";
 import { readCachedSearchIndex, searchCachedPhones, storeSearchIndex } from "./lib/catalogSearch";
+import { PhoneFinder } from "./components/PhoneFinder";
 import { PhoneSearchResults } from "./components/PhoneSearchResults";
 import { CatalogFilters } from "./components/CatalogFilters";
 import { ComparisonPage } from "./components/ComparisonPage";
@@ -188,6 +189,7 @@ export default function App() {
         <div className="nav-actions">
           <a className="nav-link" href="#latest">Latest phones</a>
           <a className="nav-link" href="#catalog">Explore phones</a>
+          <a className="nav-link" href="#finder">Phone finder</a>
           <button type="button" className="nav-link nav-compare-link" onClick={openComparison}>Compare phones</button>
           <a className="nav-link" href="#market">Pakistan prices</a>
           <a className="nav-link" href="#how-it-works">How it works</a>
@@ -243,6 +245,7 @@ export default function App() {
           <div className="hero-visual-bottom"><span>Explore</span><span>Compare</span><span>Choose</span></div>
         </div>
       </section>
+      <PhoneFinder brands={brandsQuery.data?.results ?? []} onOpenDevice={setActiveSlug} onCompareDevice={addComparison} />
       <LatestPhones
         phones={latestQuery.data ?? []}
         isLoading={latestQuery.isPending}
