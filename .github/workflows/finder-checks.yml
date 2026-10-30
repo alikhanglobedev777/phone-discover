@@ -1,0 +1,60 @@
+name: Phone Finder Safety Checks
+on:
+  push:
+    branches: [feature/complete-finder-safe-rollout-20261030]
+  pull_request:
+    paths:
+      - 'frontend/**'
+      - 'backend/recommendations/**'
+      - 'backend/catalog/**'
+      - '.github/workflows/finder-checks.yml'
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run test:ui
+      - run: npm run build
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: phonefinder
+          POSTGRES_PASSWORD: phonefinder_ci_only
+          POSTGRES_DB: phonefinder_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U phonefinder -d phonefinder_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DJANGO_SECRET_KEY: "ci-only-not-a-production-secret-xxxxxxxx"
+      POSTGRES_USER: phonefinder
+      POSTGRES_PASSWORD: phonefinder_ci_only
+      POSTGRES_DB: phonefinder_test
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: '5432'
+      DJANGO_DEBUG: '1'
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - run: python manage.py check
+      - run: python manage.py test catalog.test_search catalog.test_pricing recommendations.test_pakistan_local recommendations.test_conversation_research
