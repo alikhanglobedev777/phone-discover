@@ -87,6 +87,32 @@ export type ConversationRequest = {
   reset_context?: boolean;
 };
 
+export type CatalogEvidence = {
+  tier: "reviewed_recent" | "reviewed_outdated" | "catalog_dated_no_source" | "catalog_unverified";
+  label: string;
+  last_verified_at: string | null;
+  recent_reviewed_claims: number;
+  reviewed_claims: number;
+  source_links: {
+    label: string; url: string; publisher: string; field: string | null;
+    reviewed_at: string | null; source_checked_at: string | null;
+    is_recent: boolean; kind: string;
+  }[];
+  caution: string;
+};
+
+export type CatalogQuality = {
+  published_devices: number;
+  published_variants: number;
+  devices_recently_verified: number;
+  devices_with_official_link: number;
+  variants_with_camera_editorial_score: number;
+  variants_with_gaming_editorial_score: number;
+  variants_with_battery_editorial_score: number;
+  reviewed_source_claims: number;
+  caution: string;
+};
+
 export type CatalogPhoneDetail = {
   slug: string;
   brand: string;
@@ -95,6 +121,7 @@ export type CatalogPhoneDetail = {
   operating_system: string;
   primary_image_url: string;
   detail_api_url: string;
+  evidence?: CatalogEvidence;
   last_verified_at?: string | null;
   variants: { ram_gb: number; storage_gb: number; chipset: string; battery_mah: number | null; display_refresh_hz: number | null }[];
   specification_sections: { name: string; items: { label: string; value: string }[] }[];
@@ -114,10 +141,12 @@ export type SpecsRecommendation = {
   facts: string[];
   price_status: "not_verified_for_filters";
   evidence_label: string;
+  evidence?: CatalogEvidence;
+  spec_coverage?: Record<string, number>;
 };
 
 export type PhoneComparison = {
-  phones: { slug: string; name: string }[];
+  phones: { slug: string; name: string; evidence?: CatalogEvidence }[];
   dimensions: {
     dimension: string;
     first_score: number | null;
@@ -125,6 +154,18 @@ export type PhoneComparison = {
     leader_slug: string | null;
     note: string;
   }[];
+  hardware_facts?: {
+    field: string; label: string; first: string | null; second: string | null;
+    higher_spec_slug: string | null; note: string;
+  }[];
+  market_price_comparison?: {
+    status: "not_comparable" | "comparable_observations";
+    note: string; condition?: string; city?: string;
+    pta_status?: string; pta_verification?: string;
+    storage_gb?: number; first_min_pkr?: string; first_max_pkr?: string;
+    second_min_pkr?: string; second_max_pkr?: string;
+    lower_observed_price_slug?: string | null;
+  };
   notice: string;
 };
 
@@ -320,6 +361,7 @@ export function searchPakistaniMarket(filters: MarketSearchFilters, page = 1): P
 }
 
 export type CatalogStatus = {
+  data_quality?: CatalogQuality;
   catalog_status: "empty" | "missing_prices" | "ready";
   research_available: boolean;
   automatic_research: boolean;
