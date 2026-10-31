@@ -1,4 +1,6 @@
 """Regressions for catalog-first name matching, specs-only ranking and follow-ups."""
+from unittest.mock import patch
+
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
@@ -52,6 +54,13 @@ class CatalogAdvisorTests(TestCase):
             device=cls.pixel, name="Camera", slug="camera",
         )
         SpecificationItem.objects.create(section=section, label="Main camera", value="64 MP")
+
+    def setUp(self):
+        # Exercise the real endpoint without sharing anonymous throttling state
+        # with other tests in the same suite. Production limits are unchanged.
+        throttle = patch("recommendations.views.PakistanConversationView.throttle_classes", [])
+        throttle.start()
+        self.addCleanup(throttle.stop)
 
     def ask(self, text, **fields):
         return APIClient().post("/api/recommendations/converse/",
