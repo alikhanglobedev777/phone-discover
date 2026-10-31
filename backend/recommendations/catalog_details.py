@@ -1,6 +1,7 @@
 """Read-only, published local catalog facts for exact-model conversations."""
 from catalog.models import Device
 from .model_identity import matches_phone_model
+from .evidence_quality import public_evidence, evidence_prefetch
 
 
 def _serialize(device):
@@ -24,6 +25,7 @@ def _serialize(device):
         "specification_sections": sections, "variants": variants,
         "last_verified_at": device.last_verified_at.isoformat() if device.last_verified_at else None,
         "detail_api_url": f"/api/catalog/devices/{device.slug}/",
+        "evidence": public_evidence(device),
     }
 
 
@@ -34,7 +36,7 @@ def catalog_details_for_slugs(slugs):
         return []
     devices = (Device.objects.filter(is_published=True, slug__in=wanted)
                .select_related("brand")
-               .prefetch_related("variants", "specification_sections__items"))
+               .prefetch_related("variants", "specification_sections__items", evidence_prefetch()))
     by_slug = {device.slug: device for device in devices}
     return [_serialize(by_slug[slug]) for slug in wanted if slug in by_slug]
 

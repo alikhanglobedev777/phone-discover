@@ -142,5 +142,7 @@ class CatalogStatusView(APIView):
 
     def get(self, request):
         from recommendations.provider_config import public_provider_status
+        from .quality import catalog_quality_snapshot
         return Response({"catalog_status": catalog_availability(),
+                         "data_quality": catalog_quality_snapshot(),
                          **public_provider_status()})

@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   activeFilterSummary, catalogStatus, converse, conversationPayload, forgetConversation, formatPriceRange, safeSourceUrl,
 } from "../lib/pakistan";
-import type { ConversationRequest, LocalResult, ResearchPreview, AIGuidance, CatalogPhoneDetail, SpecsRecommendation, PhoneComparison } from "../lib/pakistan";
+import type { ConversationRequest, LocalResult, ResearchPreview, AIGuidance, CatalogPhoneDetail, SpecsRecommendation, PhoneComparison, CatalogEvidence } from "../lib/pakistan";
 
 type Props = {
   onOpenDevice: (slug: string) => void;
@@ -79,6 +79,28 @@ function PhoneCardHeader({ slug, brand, name, image, caption, onOpenDevice }: {
   </div>;
 }
 
+function EvidenceProvenance({ evidence }: { evidence?: CatalogEvidence }) {
+  if (!evidence) return <p className="pk-evidence-note">Source review has not been established for these specifications.</p>;
+  const sources = evidence.source_links
+    .map((source) => ({ ...source, url: safeSourceUrl(source.url) }))
+    .filter((source) => source.url !== null);
+  return <div className="chat-evidence" aria-label="Catalog evidence and sources">
+    <p className="pk-evidence-note"><strong>{evidence.label}</strong>
+      {evidence.last_verified_at
+        ? ` · Catalog date: ${new Date(evidence.last_verified_at).toLocaleDateString("en-PK")}`
+        : " · No recorded verification date"}
+    </p>
+    {sources.length > 0
+      ? <ul>{sources.map((source, index) => <li key={`${source.url}-${index}`}>
+          <a href={source.url ?? "#"} target="_blank" rel="noopener noreferrer">{source.label}</a>
+          {source.kind === "reviewed_claim" ? ` · Reviewed field: ${source.field ?? "unspecified"}` : " · Manufacturer link only"}
+          {source.kind === "reviewed_claim" && !source.is_recent ? " · May be outdated" : ""}
+        </li>)}</ul>
+      : <p className="pk-evidence-note">No independently reviewed source link is available.</p>}
+    <p className="pk-evidence-note">{evidence.caution}</p>
+  </div>;
+}
+
 function SpecsCard({ phone, onOpenDevice, onCompareDevice }: {
   phone: SpecsRecommendation;
   onOpenDevice: Props["onOpenDevice"];
@@ -94,7 +116,7 @@ function SpecsCard({ phone, onOpenDevice, onCompareDevice }: {
     <ul className="chat-card-facts">{phone.facts.slice(0, 3).map((fact) => <li key={fact}>{fact}</li>)}</ul>
     {phone.missing_scores.length > 0 && <p className="pk-evidence-note">Missing editorial evidence: {phone.missing_scores.join(", ")}</p>}
     <p className="pk-evidence-note"><strong>Price and PTA unverified.</strong> No budget, city or condition match is claimed.</p>
-    {phone.last_verified_at && <p className="pk-evidence-note">Catalog verified: {new Date(phone.last_verified_at).toLocaleDateString("en-PK")}</p>}
+    <EvidenceProvenance evidence={phone.evidence} />
     <div className="pk-result-actions">
       <button type="button" onClick={() => onOpenDevice(phone.slug)}>View details</button>
       <button type="button" onClick={() => onCompareDevice(phone.slug)}>+ Compare</button>
@@ -329,6 +351,15 @@ export function RecommendationAssistant({ onOpenDevice, onCompareDevice, marketR
         <div className="assistant-conversation">
           {status.isError && <p className="assistant-service-warning" role="status">Service temporarily unavailable. You can try again shortly.</p>}
           {status.data?.catalog_status === "empty" && <p className="state-message" role="status">The phone catalog is empty. Local recommendations will appear after phones and Pakistani prices are imported.</p>}
+          {status.data?.data_quality && <p className="pk-evidence-note chat-catalog-quality" role="status">
+            Catalog coverage: {status.data.data_quality.published_devices.toLocaleString("en-PK")} published phones.
+            {" "}Reviewed source claims: {status.data.data_quality.reviewed_source_claims}.
+            {" "}Camera / gaming / battery editorial ratings recorded:{" "}
+            {status.data.data_quality.variants_with_camera_editorial_score} /{" "}
+            {status.data.data_quality.variants_with_gaming_editorial_score} /{" "}
+            {status.data.data_quality.variants_with_battery_editorial_score}.
+            {" "}Missing ratings are never invented.
+          </p>}
           {status.data?.catalog_status === "missing_prices" && <p className="state-message" role="status">Catalog phones are available, but their Pakistani price evidence needs adding or refreshing.</p>}
           <div className="chat-stream" ref={chatStreamRef} role="log" aria-label="Assistant conversation" aria-live="polite" aria-relevant="additions">
             {messages.map((entry) => <div className={`chat-message chat-${entry.role}`} key={entry.id}>
@@ -345,12 +376,35 @@ export function RecommendationAssistant({ onOpenDevice, onCompareDevice, marketR
                       <PhoneCardHeader slug={phone.slug} brand={entry.catalogDetails?.find((detail) => detail.slug === phone.slug)?.brand ?? "Phone"} name={phone.name}
                         image={entry.catalogDetails?.find((detail) => detail.slug === phone.slug)?.primary_image_url ?? ""}
                         caption="Comparison" onOpenDevice={onOpenDevice} />
+                      <EvidenceProvenance evidence={phone.evidence} />
                       <div className="pk-result-actions">
                         <button type="button" onClick={() => onOpenDevice(phone.slug)}>View details</button>
                         <button type="button" onClick={() => onCompareDevice(phone.slug)}>+ Compare</button>
                       </div>
                     </div>)}
                   </div>
+                  {entry.comparison.hardware_facts && entry.comparison.hardware_facts.length > 0 && <div className="chat-compare-facts">
+                    <h4>Recorded hardware specifications</h4>
+                    <div className="chat-compare-table-scroll">
+                      <table>
+                        <thead><tr><th scope="col">Specification</th><th scope="col">{entry.comparison.phones[0]?.name}</th><th scope="col">{entry.comparison.phones[1]?.name}</th></tr></thead>
+                        <tbody>{entry.comparison.hardware_facts.map((fact) => <tr key={fact.field}>
+                          <th scope="row">{fact.label}</th><td>{fact.first ?? "Not recorded"}</td><td>{fact.second ?? "Not recorded"}</td>
+                        </tr>)}</tbody>
+                      </table>
+                    </div>
+                    <p className="pk-evidence-note">Higher RAM, mAh, refresh rate or megapixels do not by themselves establish better real-world performance.</p>
+                  </div>}
+                  {entry.comparison.market_price_comparison && <div className="chat-compare-price" aria-label="Comparable price evidence">
+                    <h4>Pakistan market price evidence</h4>
+                    <p className="pk-evidence-note">{entry.comparison.market_price_comparison.note}</p>
+                    {entry.comparison.market_price_comparison.status === "comparable_observations" &&
+                      <p className="pk-evidence-note">
+                        {entry.comparison.phones[0]?.name}: PKR {entry.comparison.market_price_comparison.first_min_pkr}–{entry.comparison.market_price_comparison.first_max_pkr} ·
+                        {" "}{entry.comparison.phones[1]?.name}: PKR {entry.comparison.market_price_comparison.second_min_pkr}–{entry.comparison.market_price_comparison.second_max_pkr}.
+                        {" "}Only same storage, condition, PTA classification and city are compared.
+                      </p>}
+                  </div>}
                   {entry.comparison.dimensions.map((dimension) => <p className="pk-evidence-note" key={dimension.dimension}>
                     <strong>{dimension.dimension.charAt(0).toUpperCase() + dimension.dimension.slice(1)}:</strong>{" "}
                     {dimension.first_score !== null ? dimension.first_score.toFixed(0) : "Not rated"} vs{" "}
@@ -389,7 +443,7 @@ export function RecommendationAssistant({ onOpenDevice, onCompareDevice, marketR
                     </div>)}
                   </details>}
                   <p className="pk-evidence-note">Saved catalog specifications. Prices and PTA status require separate evidence.</p>
-                  {phone.last_verified_at && <p className="pk-evidence-note">Catalog verified: {new Date(phone.last_verified_at).toLocaleDateString("en-PK")}</p>}
+                  <EvidenceProvenance evidence={phone.evidence} />
                   <div className="pk-result-actions">
                     <button type="button" onClick={() => onOpenDevice(phone.slug)}>View details</button>
                     <button type="button" onClick={() => onCompareDevice(phone.slug)}>+ Compare</button>
