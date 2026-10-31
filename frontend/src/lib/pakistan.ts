@@ -119,6 +119,7 @@ export type ConversationResponse = {
 export function activeFilterSummary(criteria: Record<string, unknown>): string {
   const labels: Record<string, string> = {
     budget_pkr: "Budget PKR", city: "City", condition: "Condition", brand: "Brand",
+    device_query: "Exact model",
     pta_status: "PTA", pta_verification: "PTA evidence", ram_min: "Minimum RAM",
     storage_min: "Minimum storage", priorities: "Priorities",
   };
