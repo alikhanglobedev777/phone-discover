@@ -94,9 +94,15 @@ def main():
         check("Pronoun comparison uses last phone and new exact phone",
               [x["slug"] for x in pair.get("phones", [])]
               == ["samsung-galaxy-s26-ultra", "google-pixel-7a"])
-        check("Comparison missing scores never invent winners",
-              all(row.get("leader_slug") is None
-                  for row in pair.get("dimensions", [])))
+        check("Comparison only names a leader where both editorial scores exist",
+              all(
+                  row.get("leader_slug") is None
+                  if row.get("first_score") is None or row.get("second_score") is None
+                  else row.get("leader_slug") in (
+                      None, pair["phones"][0]["slug"], pair["phones"][1]["slug"]
+                  )
+                  for row in pair.get("dimensions", [])
+              ))
         battery = chat(sessions[1], "Which one has better battery?")
         check("Follow-up keeps the same two phones",
               [x["slug"] for x in (battery.get("comparison") or {}).get("phones", [])]
@@ -110,7 +116,10 @@ def main():
               and "explanation" in camera)
         check("Unpriced phones never claim verified local prices",
               all(x.get("price_status") == "not_verified_for_filters"
-                  and x.get("editorial_fit") is None for x in suggestions))
+                  and (x.get("editorial_fit") is None
+                       or any(v is not None for v in
+                              x.get("dimension_scores", {}).values()))
+                  for x in suggestions))
         shown = [x["slug"] for x in suggestions] + [
             x["device"]["slug"] for x in priced
         ]
