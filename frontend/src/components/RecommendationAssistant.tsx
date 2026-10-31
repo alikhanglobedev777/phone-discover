@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   activeFilterSummary, catalogStatus, converse, conversationPayload, forgetConversation, formatPriceRange, safeSourceUrl,
 } from "../lib/pakistan";
-import type { ConversationRequest, LocalResult, ResearchPreview, AIGuidance, CatalogPhoneDetail } from "../lib/pakistan";
+import type { ConversationRequest, LocalResult, ResearchPreview, AIGuidance, CatalogPhoneDetail, SpecsRecommendation, PhoneComparison } from "../lib/pakistan";
 
 type Props = {
   onOpenDevice: (slug: string) => void;
@@ -20,6 +20,8 @@ type ChatMessage = {
   text: string;
   results?: LocalResult[];
   catalogDetails?: CatalogPhoneDetail[];
+  specsResults?: SpecsRecommendation[];
+  comparison?: PhoneComparison | null;
   needsResearch?: boolean;
   research?: ResearchPreview;
   guidance?: AIGuidance;
@@ -47,6 +49,34 @@ const GREETING: ChatMessage = {
   id: "welcome", role: "assistant",
   text: "Hi! What phone can I help you find?",
 };
+
+function SpecsCard({ phone, onOpenDevice, onCompareDevice }: {
+  phone: SpecsRecommendation;
+  onOpenDevice: Props["onOpenDevice"];
+  onCompareDevice: Props["onCompareDevice"];
+}) {
+  return <article className="pk-result-card">
+    <div className="pk-result-head">
+      {phone.primary_image_url ? <img src={phone.primary_image_url} alt="" loading="lazy" /> : <span className="pk-phone-placeholder" aria-hidden="true">▣</span>}
+      <div>
+        <span className="pk-kicker">{phone.brand} · Specs-only candidate</span>
+        <h3>{phone.name}</h3>
+      </div>
+    </div>
+    {phone.summary && <p className="pk-result-meta">{phone.summary}</p>}
+    {phone.editorial_fit !== null ? <p className="pk-evidence-note">Editorial catalog fit: {phone.editorial_fit.toFixed(0)}/100 · Not a benchmark</p>
+      : <p className="pk-evidence-note">Not enough scoring evidence to rank this phone's quality.</p>}
+    {phone.strengths.map((fact, index) => <p className="pk-evidence-note" key={index}>{fact}</p>)}
+    <p className="pk-evidence-note">{phone.facts.join(" · ")}</p>
+    {phone.missing_scores.length > 0 && <p className="pk-evidence-note">Missing editorial evidence: {phone.missing_scores.join(", ")}</p>}
+    <p className="pk-evidence-note"><strong>Price and PTA unverified.</strong> No budget, city or condition match is claimed.</p>
+    {phone.last_verified_at && <p className="pk-evidence-note">Catalog verified: {new Date(phone.last_verified_at).toLocaleDateString("en-PK")}</p>}
+    <div className="pk-result-actions">
+      <button type="button" onClick={() => onOpenDevice(phone.slug)}>View details</button>
+      <button type="button" onClick={() => onCompareDevice(phone.slug)}>+ Compare</button>
+    </div>
+  </article>;
+}
 
 function PriceCard({ result, onOpenDevice, onCompareDevice }: {
   result: LocalResult;
@@ -214,7 +244,8 @@ export function RecommendationAssistant({ onOpenDevice, onCompareDevice, marketR
       }
       setMessages((current) => [...current, {
         id: response.query_id || uuid(), role: "assistant", text: response.explanation,
-        results: response.results, catalogDetails: response.catalog_details, needsResearch: response.needs_research,
+        results: response.results, catalogDetails: response.catalog_details, specsResults: response.specs_results,
+        comparison: response.comparison, needsResearch: response.needs_research,
         research: response.research, guidance: response.guidance, memoryUsed: response.memory_used,
         filters: activeFilterSummary(response.criteria), references: response.research.results?.length ? undefined : response.price_references,
       }]);
@@ -280,8 +311,34 @@ export function RecommendationAssistant({ onOpenDevice, onCompareDevice, marketR
                 <p>{entry.text}</p>
                 {entry.memoryUsed && <p className="pk-evidence-note">Preferences carried forward from this session.</p>}
                 {entry.filters && <p className="pk-evidence-note">Filters used — {entry.filters}</p>}
+                {entry.comparison && <section className="pk-reference-results" aria-label="Catalog phone comparison">
+                  <h3>Catalog comparison</h3>
+                  <p className="pk-evidence-note">{entry.comparison.notice}</p>
+                  <div className="pk-result-grid">
+                    {entry.comparison.phones.map((phone) => <div key={phone.slug} className="pk-result-card">
+                      <strong>{phone.name}</strong>
+                      <div className="pk-result-actions">
+                        <button type="button" onClick={() => onOpenDevice(phone.slug)}>View details</button>
+                        <button type="button" onClick={() => onCompareDevice(phone.slug)}>+ Compare</button>
+                      </div>
+                    </div>)}
+                  </div>
+                  {entry.comparison.dimensions.map((dimension) => <p className="pk-evidence-note" key={dimension.dimension}>
+                    <strong>{dimension.dimension.charAt(0).toUpperCase() + dimension.dimension.slice(1)}:</strong>{" "}
+                    {dimension.first_score !== null ? dimension.first_score.toFixed(0) : "Not rated"} vs{" "}
+                    {dimension.second_score !== null ? dimension.second_score.toFixed(0) : "Not rated"}.
+                    {" "}{dimension.leader_slug
+                      ? `Higher catalog score: ${entry.comparison?.phones.find((phone) => phone.slug === dimension.leader_slug)?.name ?? "unknown"}.`
+                      : "No established leader."}
+                    {" "}{dimension.note}
+                  </p>)}
+                </section>}
+                {entry.specsResults && entry.specsResults.length > 0 && <section aria-label="Specifications-based phone suggestions">
+                  <h3>Local catalog candidates — prices unverified</h3>
+                  <div className="pk-result-grid">{entry.specsResults.map((phone) => <SpecsCard key={phone.slug} phone={phone} onOpenDevice={onOpenDevice} onCompareDevice={onCompareDevice} />)}</div>
+                </section>}
                 {!!entry.references?.results.length && <section className="pk-reference-results" aria-label="Price references with unconfirmed city or PTA status"><h3>Price references — city/PTA unconfirmed</h3><p className="pk-evidence-note">{entry.references.notice}</p><div className="pk-result-grid">{entry.references.results.map((result) => <PriceCard key={`${entry.id}-reference-${result.device.slug}`} result={result} onOpenDevice={onOpenDevice} onCompareDevice={onCompareDevice} />)}</div></section>}
-                {entry.catalogDetails?.map((phone) => (
+                {!entry.comparison && entry.catalogDetails?.map((phone) => (
                   <p key={`link-${phone.slug}`} className="chat-phone-link-row">
                     <a
                       href={`/?device=${encodeURIComponent(phone.slug)}`}
@@ -298,7 +355,7 @@ export function RecommendationAssistant({ onOpenDevice, onCompareDevice, marketR
                     </a>
                   </p>
                 ))}
-                {entry.catalogDetails?.map((phone) => <article className="pk-result-card" key={phone.slug}>
+                {!entry.comparison && entry.catalogDetails?.map((phone) => <article className="pk-result-card" key={phone.slug}>
                    <div className="pk-result-head">
                      {phone.primary_image_url ? <img src={phone.primary_image_url} alt="" loading="lazy" /> : <span className="pk-phone-placeholder" aria-hidden="true">▣</span>}
                      <div><span className="pk-kicker">{phone.brand} · Local catalog</span><h3>{phone.name}</h3></div>
