@@ -1,0 +1,47 @@
+name: Browser & Mobile Chat Regression
+
+on:
+  pull_request:
+    paths:
+      - 'frontend/**'
+      - 'backend/recommendations/**'
+      - 'backend/catalog/**'
+      - '.github/workflows/browser-quality.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run test:ui
+      - run: npm run build
+      - name: Install browser test runner (CI only)
+        run: npm install --no-save --ignore-scripts playwright
+      - name: Install Chromium and system dependencies
+        run: npx playwright install --with-deps chromium
+      - name: Start local production preview
+        run: |
+          npx vite preview --host 127.0.0.1 --port 4173 > /tmp/phone-preview.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/ > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/phone-preview.log
+          exit 1
+      - name: Real Chromium desktop and mobile interaction smoke test
+        run: node tests/browser/chat-smoke.mjs
