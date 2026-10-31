@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   activeFilterSummary, catalogStatus, converse, conversationPayload, forgetConversation, formatPriceRange, safeSourceUrl,
 } from "../lib/pakistan";
-import type { ConversationRequest, LocalResult, ResearchPreview, AIGuidance } from "../lib/pakistan";
+import type { ConversationRequest, LocalResult, ResearchPreview, AIGuidance, CatalogPhoneDetail } from "../lib/pakistan";
 
 type Props = {
   onOpenDevice: (slug: string) => void;
@@ -19,6 +19,7 @@ type ChatMessage = {
   role: "user" | "assistant";
   text: string;
   results?: LocalResult[];
+  catalogDetails?: CatalogPhoneDetail[];
   needsResearch?: boolean;
   research?: ResearchPreview;
   guidance?: AIGuidance;
@@ -280,7 +281,24 @@ export function RecommendationAssistant({ onOpenDevice, onCompareDevice, marketR
                 {entry.memoryUsed && <p className="pk-evidence-note">Preferences carried forward from this session.</p>}
                 {entry.filters && <p className="pk-evidence-note">Filters used — {entry.filters}</p>}
                 {!!entry.references?.results.length && <section className="pk-reference-results" aria-label="Price references with unconfirmed city or PTA status"><h3>Price references — city/PTA unconfirmed</h3><p className="pk-evidence-note">{entry.references.notice}</p><div className="pk-result-grid">{entry.references.results.map((result) => <PriceCard key={`${entry.id}-reference-${result.device.slug}`} result={result} onOpenDevice={onOpenDevice} onCompareDevice={onCompareDevice} />)}</div></section>}
-                {entry.results && entry.results.length > 0 && <div className="pk-result-grid">{entry.results.map((result) => <PriceCard key={`${entry.id}-${result.device.slug}`} result={result} onOpenDevice={onOpenDevice} onCompareDevice={onCompareDevice} />)}</div>}
+                {entry.catalogDetails?.map((phone) => <article className="pk-result-card" key={phone.slug}>
+                   <div className="pk-result-head">
+                     {phone.primary_image_url ? <img src={phone.primary_image_url} alt="" loading="lazy" /> : <span className="pk-phone-placeholder" aria-hidden="true">▣</span>}
+                     <div><span className="pk-kicker">{phone.brand} · Local catalog</span><h3>{phone.name}</h3></div>
+                   </div>
+                   {phone.summary && <p className="pk-result-meta">{phone.summary}</p>}
+                   {phone.operating_system && <p className="pk-evidence-note">OS: {phone.operating_system}</p>}
+                   {phone.variants.slice(0, 3).map((variant, index) => <p className="pk-evidence-note" key={index}>
+                     {[variant.ram_gb && `${variant.ram_gb} GB RAM`, variant.storage_gb && `${variant.storage_gb} GB storage`, variant.chipset, variant.battery_mah && `${variant.battery_mah} mAh battery`, variant.display_refresh_hz && `${variant.display_refresh_hz} Hz screen`].filter(Boolean).join(" · ")}
+                   </p>)}
+                   {phone.specification_sections.map((section) => <div key={section.name}>
+                     <strong>{section.name}</strong>
+                     {section.items.slice(0, 10).map((item) => <p key={item.label} className="pk-evidence-note">{item.label}: {item.value}</p>)}
+                   </div>)}
+                   <p className="pk-evidence-note">Saved catalog specifications. Prices and PTA status require separate evidence.</p>
+                   <div className="pk-result-actions"><button type="button" onClick={() => onOpenDevice(phone.slug)}>Full details</button><button type="button" onClick={() => onCompareDevice(phone.slug)}>+ Compare</button></div>
+                 </article>)}
+                 {entry.results && entry.results.length > 0 && <div className="pk-result-grid">{entry.results.map((result) => <PriceCard key={`${entry.id}-${result.device.slug}`} result={result} onOpenDevice={onOpenDevice} onCompareDevice={onCompareDevice} />)}</div>}
                 {entry.needsResearch && researchAvailable && !status.data?.automatic_research && <p className="pk-evidence-note">Local evidence is incomplete. You can request web research for source-linked details.</p>}
                 {entry.guidance?.status === "generated" && <div className="pk-research-preview pk-guidance-preview"><strong>AI general guidance · not verified</strong><p>{entry.guidance.notice}</p><p className="pk-research-summary">{entry.guidance.text}</p></div>}
                 {entry.guidance && ["unavailable", "disabled", "rate_limited"].includes(entry.guidance.status) && <p className="pk-evidence-note" role="status">AI guidance: {entry.guidance.notice}</p>}

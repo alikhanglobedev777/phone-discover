@@ -22,6 +22,7 @@ from .serializers import RecommendationRequestSerializer, PakistanRecommendation
 from .local_rank import interpret_local_request, rank_pakistan_phones, local_explanation, price_reference_alternatives
 from .local_intent import parse_pakistan_intent
 from .model_identity import matches_phone_model
+from .catalog_details import exact_catalog_details
 from .services import (
     build_criteria,
     json_ready,
@@ -217,7 +218,15 @@ class PakistanConversationView(APIView):
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         summary = rank_pakistan_phones(criteria)
+        catalog_details = exact_catalog_details(criteria)
         explanation = local_explanation(criteria, summary)
+        if catalog_details and not summary["results"]:
+            phone = catalog_details[0]
+            explanation = (
+                f"{phone['brand']} {phone['name']} is in the local catalog. "
+                "Its saved specifications are below. A verified matching Pakistan "
+                "price is not available for the selected filters."
+            )
         alternatives = price_reference_alternatives(criteria, summary)
         if alternatives["results"]:
             explanation = (
@@ -229,9 +238,12 @@ class PakistanConversationView(APIView):
             store_context(criteria)
         research = {"status": "not_requested", "summary": "", "sources": [],
                     "notice": "External research was not requested."}
-        automatic = bool(auto_research_enabled() and research_configured() and not summary["results"])
+        automatic = bool(auto_research_enabled() and research_configured() and not summary["results"] and not catalog_details)
         if validated["research"] or automatic:
-            if not summary["needs_research"]:
+            if catalog_details and not summary["results"]:
+                research["status"] = "not_needed"
+                research["notice"] = "The exact phone is already in the local catalog; its specifications are shown below."
+            elif not summary["needs_research"]:
                 research["status"] = "not_needed"
                 research["notice"] = "Local evidence is currently sufficient for this shortlist."
             else:
@@ -278,6 +290,7 @@ class PakistanConversationView(APIView):
             "memory_enabled": use_memory, "memory_used": bool(previous),
             "criteria": json_ready(criteria), **summary, "explanation": explanation,
             "price_references": alternatives,
+            "catalog_details": catalog_details,
             "response_source": "deterministic",
             "research_requested": validated["research"],
             "research_automatic": automatic,
