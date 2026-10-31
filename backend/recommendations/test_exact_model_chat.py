@@ -13,6 +13,18 @@ from .automatic_research import research_and_save
 
 
 class ExactModelChatTests(SimpleTestCase):
+    def test_google_pixel_7a_intent_is_exact(self):
+        for message in ("Google Pixel 7a info", "tell me about pixel 7a",
+                        "Pixel 7a specs"):
+            with self.subTest(message=message):
+                parsed = parse_pakistan_intent(message)
+                self.assertEqual(parsed["brand"], "google")
+                self.assertEqual(parsed["device_query"], "Pixel 7a")
+                self.assertNotIn("budget_pkr", parsed)
+        self.assertNotIn("device_query", parse_pakistan_intent("best Google camera phone"))
+        self.assertTrue(matches_phone_model("Pixel 7a", "Google", "Pixel 7a"))
+        self.assertFalse(matches_phone_model("Pixel 7a", "Google", "Pixel 7 Pro"))
+
     def test_vivo_x90s_intent_is_exact(self):
         parsed = parse_pakistan_intent("Tell me about Vivo X90s in Pakistan")
         self.assertEqual(parsed["brand"], "vivo")
