@@ -145,9 +145,16 @@ def parse_pakistan_intent(message: str) -> dict:
     # Canonicalize explicit model names without sending arbitrary chat text to
     # Gemini. An exact-model request must never silently become any Apple phone.
     model = re.search(r"\biphone\s+(\d{1,2})\s*(pro\s+max|pro|plus|air|mini)?\b", text)
+    pixel = re.search(r"\b(?:google\s+)?pixel\s+(\d{1,2}[a-z]?(?:\s+(?:pro|xl|fold|5g))*)\b", text)
     if model:
         suffix = " ".join(word.capitalize() for word in (model.group(2) or "").split())
         result["device_query"] = f"iPhone {model.group(1)}" + (f" {suffix}" if suffix else "")
+    elif pixel:
+        # Google Pixel 7a is one exact model, not a general Google search.
+        result["brand"] = "google"
+        parts = [part.upper() if part == "xl" else part.capitalize()
+                 for part in pixel.group(1).split()]
+        result["device_query"] = "Pixel " + " ".join(parts)
     else:
         # Model lookups must miss locally and trigger discovery rather than
         # quietly returning unrelated phones from the same brand.
