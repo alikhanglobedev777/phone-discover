@@ -85,6 +85,18 @@ export type ConversationRequest = {
   reset_context?: boolean;
 };
 
+export type CatalogPhoneDetail = {
+  slug: string;
+  brand: string;
+  name: string;
+  summary: string;
+  operating_system: string;
+  primary_image_url: string;
+  detail_api_url: string;
+  variants: { ram_gb: number; storage_gb: number; chipset: string; battery_mah: number | null; display_refresh_hz: number | null }[];
+  specification_sections: { name: string; items: { label: string; value: string }[] }[];
+};
+
 export type ConversationResponse = {
   session_id: string;
   query_id: string;
@@ -92,6 +104,7 @@ export type ConversationResponse = {
   memory_used: boolean;
   explanation: string;
   results: LocalResult[];
+  catalog_details?: CatalogPhoneDetail[];
   count: number;
   needs_research: boolean;
   research_reason: string | null;
