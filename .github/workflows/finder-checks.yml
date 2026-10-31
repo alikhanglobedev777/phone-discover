@@ -57,4 +57,4 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements.txt
       - run: python manage.py check
-      - run: python manage.py test catalog.test_search catalog.test_pricing recommendations.test_pakistan_local recommendations.test_conversation_research
+      - run: python manage.py test catalog.test_search catalog.test_pricing recommendations.test_pakistan_local recommendations.test_conversation_research recommendations.test_exact_model_chat recommendations.test_catalog_details_chat
