@@ -1,6 +1,6 @@
 """Smoke-test deployed Render APIs using disposable chat sessions.
 
-This script runs on GitHub-hosted CI (network-enabled). It performs 7 bounded
+This script runs on GitHub-hosted CI (network-enabled). It performs 6 bounded
 anonymous chat requests with web research explicitly disabled and deletes each
 test session in finally to remove the test context and query analytics.
 No production catalog edits, score changes, or provider API calls are requested.
