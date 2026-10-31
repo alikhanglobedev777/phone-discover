@@ -244,7 +244,7 @@ class PakistanConversationView(APIView):
                               if slug != mentions[0]["slug"]), None)
                 if older:
                     comparison_slugs = [older, mentions[0]["slug"]]
-            elif len(previous_slugs) == 2:
+            elif not mentions and len(previous_slugs) == 2:
                 comparison_slugs = previous_slugs
         comparison = compare_catalog_phones(comparison_slugs, criteria["priorities"])
         clarify_comparison = wants_comparison and comparison is None
