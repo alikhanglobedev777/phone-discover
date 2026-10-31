@@ -220,6 +220,12 @@ class PakistanConversationView(APIView):
         summary = rank_pakistan_phones(criteria)
         catalog_details = exact_catalog_details(criteria)
         explanation = local_explanation(criteria, summary)
+        if criteria.get("device_query") and not catalog_details and not summary["results"]:
+            # Never fall back to a sibling (e.g. S26 when S26 Ultra is requested).
+            explanation = (
+                f"I could not find an exact published local catalog match for "
+                f"{criteria['device_query']}. I will not substitute a different model."
+            )
         if catalog_details and not summary["results"]:
             phone = catalog_details[0]
             explanation = (
