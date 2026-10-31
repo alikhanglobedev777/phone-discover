@@ -102,12 +102,17 @@ def build_conversation_criteria(validated, supplied_fields, previous):
     return criteria
 
 
-def store_context(criteria):
+def store_context(criteria, *, recent_device_slugs=()):
     preferences = {
         key: value for key in PREFERENCE_FIELDS
         if (value := criteria.get(key)) is not None
     }
     preferences["response_language"] = criteria["response_language"]
+    # Bounded model identifiers only, not raw text or phone details.
+    preferences["recent_device_slugs"] = [
+        slug for slug in dict.fromkeys(recent_device_slugs)
+        if isinstance(slug, str) and len(slug) <= 220
+    ][:5]
     # Stored values are strict JSON, including Decimal as string.
     preferences = json_ready(preferences)
     with transaction.atomic():
