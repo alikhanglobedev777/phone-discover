@@ -1,7 +1,7 @@
 import { marketResearchHandoff } from "../lib/pakistan";
 import type { MarketSearchFilters } from "../lib/pakistan";
 import { useEffect, useRef, useState } from "react";
-import type { FormEvent } from "react";
+import type { FormEvent, MouseEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   activeFilterSummary, catalogStatus, converse, conversationPayload, forgetConversation, formatPriceRange, safeSourceUrl,
@@ -50,24 +50,47 @@ const GREETING: ChatMessage = {
   text: "Hi! What phone can I help you find?",
 };
 
+/** Shared clickable identity for exact-model, price-backed and specs-only cards. */
+function PhoneCardHeader({ slug, brand, name, image, caption, onOpenDevice }: {
+  slug: string; brand: string; name: string; image: string; caption: string;
+  onOpenDevice: Props["onOpenDevice"];
+}) {
+  const [imageFailed, setImageFailed] = useState(false);
+  useEffect(() => setImageFailed(false), [image]);
+
+  function openInModal(event: MouseEvent<HTMLAnchorElement>) {
+    // Modified clicks retain the shareable direct-link URL.
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    onOpenDevice(slug);
+  }
+  const href = `/?device=${encodeURIComponent(slug)}`;
+  return <div className="pk-result-head chat-card-head">
+    <a className="chat-card-photo-link" href={href} onClick={openInModal} aria-label={`View ${brand} ${name} details`}>
+      {image && !imageFailed
+        ? <img src={image} alt={`${brand} ${name}`} loading="lazy" decoding="async" onError={() => setImageFailed(true)} />
+        : <span className="pk-phone-placeholder" aria-hidden="true">▣</span>}
+    </a>
+    <div className="chat-card-identity">
+      <span className="pk-kicker">{brand} · {caption}</span>
+      <h3><a className="chat-card-title-link" href={href} onClick={openInModal}>{name}</a></h3>
+    </div>
+  </div>;
+}
+
 function SpecsCard({ phone, onOpenDevice, onCompareDevice }: {
   phone: SpecsRecommendation;
   onOpenDevice: Props["onOpenDevice"];
   onCompareDevice: Props["onCompareDevice"];
 }) {
   return <article className="pk-result-card">
-    <div className="pk-result-head">
-      {phone.primary_image_url ? <img src={phone.primary_image_url} alt="" loading="lazy" /> : <span className="pk-phone-placeholder" aria-hidden="true">▣</span>}
-      <div>
-        <span className="pk-kicker">{phone.brand} · Specs-only candidate</span>
-        <h3>{phone.name}</h3>
-      </div>
-    </div>
+    <PhoneCardHeader slug={phone.slug} brand={phone.brand} name={phone.name}
+      image={phone.primary_image_url} caption="Catalog suggestion · price unverified" onOpenDevice={onOpenDevice} />
     {phone.summary && <p className="pk-result-meta">{phone.summary}</p>}
     {phone.editorial_fit !== null ? <p className="pk-evidence-note">Editorial catalog fit: {phone.editorial_fit.toFixed(0)}/100 · Not a benchmark</p>
       : <p className="pk-evidence-note">Not enough scoring evidence to rank this phone's quality.</p>}
     {phone.strengths.map((fact, index) => <p className="pk-evidence-note" key={index}>{fact}</p>)}
-    <p className="pk-evidence-note">{phone.facts.join(" · ")}</p>
+    <ul className="chat-card-facts">{phone.facts.slice(0, 3).map((fact) => <li key={fact}>{fact}</li>)}</ul>
     {phone.missing_scores.length > 0 && <p className="pk-evidence-note">Missing editorial evidence: {phone.missing_scores.join(", ")}</p>}
     <p className="pk-evidence-note"><strong>Price and PTA unverified.</strong> No budget, city or condition match is claimed.</p>
     {phone.last_verified_at && <p className="pk-evidence-note">Catalog verified: {new Date(phone.last_verified_at).toLocaleDateString("en-PK")}</p>}
@@ -87,14 +110,16 @@ function PriceCard({ result, onOpenDevice, onCompareDevice }: {
   const sourceUrl = safeSourceUrl(price.source_url);
   return (
     <article className="pk-result-card">
-      <div className="pk-result-head">
-        {device.primary_image_url ? <img src={device.primary_image_url} alt="" loading="lazy" /> : <span className="pk-phone-placeholder" aria-hidden="true">▣</span>}
-        <div>
-          <span className="pk-kicker">{device.brand} · {variant.ram_gb} GB / {variant.storage_gb} GB</span>
-          <h3>{device.name}</h3>
-          <p className="pk-result-price">{formatPriceRange(price)}</p>
-        </div>
-      </div>
+      <PhoneCardHeader slug={device.slug} brand={device.brand} name={device.name}
+        image={device.primary_image_url} caption={`${variant.ram_gb} GB / ${variant.storage_gb} GB · Price evidence`}
+        onOpenDevice={onOpenDevice} />
+      <p className="pk-result-price">{formatPriceRange(price)}</p>
+      <ul className="chat-card-facts">
+        {variant.chipset && <li>Chipset: {variant.chipset}</li>}
+        <li>{variant.ram_gb} GB RAM · {variant.storage_gb} GB storage</li>
+        {variant.battery_mah ? <li>{variant.battery_mah} mAh battery capacity</li> : null}
+        {variant.display_refresh_hz ? <li>{variant.display_refresh_hz} Hz refresh</li> : null}
+      </ul>
       <p className="pk-result-meta">{price.condition.replaceAll("_", " ")} · {price.pta_status.replaceAll("_", " ")} · {price.city || "Pakistan"}</p>
       {price.evidence_type === "web_researched" && <p className="pk-evidence-note"><strong>Web researched · saved to catalog</strong>. Source-reported facts awaiting independent review.</p>}
       <p className="pk-evidence-note">PTA: {price.pta_verification === "checked" ? "independently checked evidence" : "reported or not independently checked"}. Observed {new Date(price.observed_at).toLocaleDateString("en-PK")}; asking price, not a live offer.</p>
@@ -103,7 +128,7 @@ function PriceCard({ result, onOpenDevice, onCompareDevice }: {
       {result.tradeoffs.length > 0 && <p className="pk-evidence-note">Consider: {result.tradeoffs.join(" · ")}</p>}
       <div className="pk-result-actions">
         {sourceUrl && <a href={sourceUrl} target="_blank" rel="noopener noreferrer">Price source</a>}
-        <button type="button" onClick={() => onOpenDevice(device.slug)} aria-label={`View details for ${device.name}`}>Details</button>
+        <button type="button" onClick={() => onOpenDevice(device.slug)} aria-label={`View details for ${device.name}`}>View details</button>
         <button type="button" onClick={() => onCompareDevice(device.slug)} aria-label={`Add ${device.name} to comparison`}>+ Compare</button>
       </div>
     </article>
@@ -316,7 +341,9 @@ export function RecommendationAssistant({ onOpenDevice, onCompareDevice, marketR
                   <p className="pk-evidence-note">{entry.comparison.notice}</p>
                   <div className="pk-result-grid">
                     {entry.comparison.phones.map((phone) => <div key={phone.slug} className="pk-result-card">
-                      <strong>{phone.name}</strong>
+                      <PhoneCardHeader slug={phone.slug} brand={""} name={phone.name}
+                        image={entry.catalogDetails?.find((detail) => detail.slug === phone.slug)?.primary_image_url ?? ""}
+                        caption="Comparison" onOpenDevice={onOpenDevice} />
                       <div className="pk-result-actions">
                         <button type="button" onClick={() => onOpenDevice(phone.slug)}>View details</button>
                         <button type="button" onClick={() => onCompareDevice(phone.slug)}>+ Compare</button>
@@ -338,40 +365,35 @@ export function RecommendationAssistant({ onOpenDevice, onCompareDevice, marketR
                   <div className="pk-result-grid">{entry.specsResults.map((phone) => <SpecsCard key={phone.slug} phone={phone} onOpenDevice={onOpenDevice} onCompareDevice={onCompareDevice} />)}</div>
                 </section>}
                 {!!entry.references?.results.length && <section className="pk-reference-results" aria-label="Price references with unconfirmed city or PTA status"><h3>Price references — city/PTA unconfirmed</h3><p className="pk-evidence-note">{entry.references.notice}</p><div className="pk-result-grid">{entry.references.results.map((result) => <PriceCard key={`${entry.id}-reference-${result.device.slug}`} result={result} onOpenDevice={onOpenDevice} onCompareDevice={onCompareDevice} />)}</div></section>}
-                {!entry.comparison && entry.catalogDetails?.map((phone) => (
-                  <p key={`link-${phone.slug}`} className="chat-phone-link-row">
-                    <a
-                      href={`/?device=${encodeURIComponent(phone.slug)}`}
-                      aria-label={`Open ${phone.brand} ${phone.name} details in a modal`}
-                      onClick={(event) => {
-                        // Use the in-app phone modal for normal clicks while
-                        // retaining a working shareable URL for new tabs.
-                        if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-                        event.preventDefault();
-                        onOpenDevice(phone.slug);
-                      }}
-                    >
-                      View {phone.brand} {phone.name} details ↗
-                    </a>
-                  </p>
-                ))}
                 {!entry.comparison && entry.catalogDetails?.map((phone) => <article className="pk-result-card" key={phone.slug}>
-                   <div className="pk-result-head">
-                     {phone.primary_image_url ? <img src={phone.primary_image_url} alt="" loading="lazy" /> : <span className="pk-phone-placeholder" aria-hidden="true">▣</span>}
-                     <div><span className="pk-kicker">{phone.brand} · Local catalog</span><h3>{phone.name}</h3></div>
-                   </div>
-                   {phone.summary && <p className="pk-result-meta">{phone.summary}</p>}
-                   {phone.operating_system && <p className="pk-evidence-note">OS: {phone.operating_system}</p>}
-                   {phone.variants.slice(0, 3).map((variant, index) => <p className="pk-evidence-note" key={index}>
-                     {[variant.ram_gb && `${variant.ram_gb} GB RAM`, variant.storage_gb && `${variant.storage_gb} GB storage`, variant.chipset, variant.battery_mah && `${variant.battery_mah} mAh battery`, variant.display_refresh_hz && `${variant.display_refresh_hz} Hz screen`].filter(Boolean).join(" · ")}
-                   </p>)}
-                   {phone.specification_sections.map((section) => <div key={section.name}>
-                     <strong>{section.name}</strong>
-                     {section.items.slice(0, 10).map((item) => <p key={item.label} className="pk-evidence-note">{item.label}: {item.value}</p>)}
-                   </div>)}
-                   <p className="pk-evidence-note">Saved catalog specifications. Prices and PTA status require separate evidence.</p>
-                   <div className="pk-result-actions"><button type="button" onClick={() => onOpenDevice(phone.slug)}>Full details</button><button type="button" onClick={() => onCompareDevice(phone.slug)}>+ Compare</button></div>
-                 </article>)}
+                  <PhoneCardHeader slug={phone.slug} brand={phone.brand} name={phone.name}
+                    image={phone.primary_image_url} caption="Local catalog" onOpenDevice={onOpenDevice} />
+                  {phone.summary && <p className="pk-result-meta">{phone.summary}</p>}
+                  <ul className="chat-card-facts">
+                    {phone.operating_system && <li>OS: {phone.operating_system}</li>}
+                    {phone.variants.slice(0, 1).map((variant, index) => <li key={index}>
+                      {[
+                        variant.ram_gb && `${variant.ram_gb} GB RAM`,
+                        variant.storage_gb && `${variant.storage_gb} GB storage`,
+                        variant.chipset, variant.battery_mah && `${variant.battery_mah} mAh battery capacity`,
+                        variant.display_refresh_hz && `${variant.display_refresh_hz} Hz`,
+                      ].filter(Boolean).join(" · ")}
+                    </li>)}
+                  </ul>
+                  {phone.specification_sections.length > 0 && <details className="chat-card-specs">
+                    <summary>Show saved specifications</summary>
+                    {phone.specification_sections.map((section) => <div key={section.name}>
+                      <strong>{section.name}</strong>
+                      {section.items.slice(0, 10).map((item) => <p key={item.label} className="pk-evidence-note">{item.label}: {item.value}</p>)}
+                    </div>)}
+                  </details>}
+                  <p className="pk-evidence-note">Saved catalog specifications. Prices and PTA status require separate evidence.</p>
+                  {phone.last_verified_at && <p className="pk-evidence-note">Catalog verified: {new Date(phone.last_verified_at).toLocaleDateString("en-PK")}</p>}
+                  <div className="pk-result-actions">
+                    <button type="button" onClick={() => onOpenDevice(phone.slug)}>View details</button>
+                    <button type="button" onClick={() => onCompareDevice(phone.slug)}>+ Compare</button>
+                  </div>
+                </article>)}
                  {entry.results && entry.results.length > 0 && <div className="pk-result-grid">{entry.results.map((result) => <PriceCard key={`${entry.id}-${result.device.slug}`} result={result} onOpenDevice={onOpenDevice} onCompareDevice={onCompareDevice} />)}</div>}
                 {entry.needsResearch && researchAvailable && !status.data?.automatic_research && <p className="pk-evidence-note">Local evidence is incomplete. You can request web research for source-linked details.</p>}
                 {entry.guidance?.status === "generated" && <div className="pk-research-preview pk-guidance-preview"><strong>AI general guidance · not verified</strong><p>{entry.guidance.notice}</p><p className="pk-research-summary">{entry.guidance.text}</p></div>}
