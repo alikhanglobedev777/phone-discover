@@ -85,6 +85,12 @@ def build_conversation_criteria(validated, supplied_fields, previous):
         "max_results": merged.get("max_results", 3),
     })
     criteria = interpret_local_request(merged)
+    # A model explicitly named in this turn always wins over remembered model
+    # preferences or stale UI fields. Never turn "S26 Ultra" into plain S26.
+    if parsed.get("device_query"):
+        criteria["device_query"] = parsed["device_query"]
+        if parsed.get("brand"):
+            criteria["brand"] = parsed["brand"]
     # parse_pakistan_intent always provides a language, including for a bare brand.
     # Remember Roman Urdu if the follow-up is purely an English device name.
     if parsed.get("response_language") == "roman_urdu":
