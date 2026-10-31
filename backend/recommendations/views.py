@@ -263,12 +263,19 @@ class PakistanConversationView(APIView):
             summary = rank_pakistan_phones(criteria)
             catalog_details = exact_catalog_details(criteria)
             explanation = local_explanation(criteria, summary)
-        specs_results = (
-            specs_recommendations(criteria) if not comparison and
-            not catalog_details and not summary["results"] and
-            not criteria.get("device_query") and criteria["priorities"] else []
-        )
-        if specs_results:
+        specs_results = []
+        if (not comparison and not catalog_details and not criteria.get("device_query")
+                and criteria["priorities"]):
+            # Keep price-evidenced cards first, then fill any remaining spaces
+            # with explicitly UNPRICED catalog suggestions. Never mix the
+            # evidence types or silently treat specs as a market offer.
+            remaining = max(0, criteria["max_results"] - len(summary["results"]))
+            if remaining:
+                specs_results = specs_recommendations(
+                    {**criteria, "max_results": remaining},
+                    exclude_slugs=[item["device"]["slug"] for item in summary["results"]],
+                )
+        if specs_results and not summary["results"]:
             dims = ", ".join(criteria["priorities"])
             explanation = (
                 f"I found {len(specs_results)} published catalog candidates for "
@@ -276,6 +283,11 @@ class PakistanConversationView(APIView):
                 "available editorial scores (not independent benchmarks). "
                 "Their Pakistani price, budget fit, PTA status and city availability "
                 "are not verified for your filters; use the details links to inspect facts."
+            )
+        elif specs_results:
+            explanation += (
+                " Other phones are shown separately as specs-only candidates; "
+                "their price, PTA, condition and city eligibility is not verified."
             )
         if not comparison and criteria.get("device_query") and not catalog_details and not summary["results"]:
             # Never fall back to a sibling (e.g. S26 when S26 Ultra is requested).
