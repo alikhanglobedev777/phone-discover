@@ -294,7 +294,26 @@ h1 span { color: var(--wine); font-weight: 570; }
 }
 .chat-drawer .chat-phone-link-row a:hover { color: var(--wine-dark); }
 .chat-drawer .chat-phone-link-row a:focus-visible { outline: 2px solid var(--wine); outline-offset: 3px; }
-.chat-drawer .pk-result-card { min-width: 0; }
+/* Phone advisor cards keep images, model identity and actions usable in mini-chat. */
+.chat-drawer .pk-result-card { min-width: 0; padding: 12px; }
+.chat-drawer .chat-card-head { display: grid; grid-template-columns: 68px minmax(0, 1fr); gap: 11px; align-items: center; }
+.chat-drawer .chat-card-photo-link { display: flex; width: 68px; height: 76px; border: 1px solid #eadce2; border-radius: 10px; overflow: hidden; align-items: center; justify-content: center; background: #fdfafb; }
+.chat-drawer .chat-card-photo-link img { display: block; width: 100%; height: 100%; border: 0; object-fit: contain; }
+.chat-drawer .chat-card-photo-link .pk-phone-placeholder { display: grid; place-items: center; width: 100%; height: 100%; border: 0; }
+.chat-drawer .chat-card-identity { min-width: 0; }
+.chat-drawer .chat-card-identity h3 { margin: 4px 0 0; font-size: 14px; line-height: 1.35; overflow-wrap: anywhere; }
+.chat-drawer .chat-card-title-link { color: #1b1317; text-decoration: underline; text-decoration-color: #c4a5b2; text-underline-offset: 3px; }
+.chat-drawer .chat-card-title-link:hover { color: var(--wine); }
+.chat-drawer .chat-card-title-link:focus-visible,
+.chat-drawer .chat-card-photo-link:focus-visible { outline: 3px solid var(--wine); outline-offset: 3px; }
+.chat-drawer .chat-card-facts { padding-left: 18px; margin: 8px 0; font-size: 11px; line-height: 1.6; color: #3c3036; overflow-wrap: anywhere; }
+.chat-drawer .chat-card-specs { margin: 10px 0; font-size: 11px; }
+.chat-drawer .chat-card-specs summary { cursor: pointer; color: var(--wine); font-weight: 750; }
+.chat-drawer .chat-card-specs[open] { padding: 9px; background: #fdf8fa; border-radius: 8px; }
+.chat-drawer .chat-card-specs div { margin-top: 10px; }
+.chat-drawer .pk-result-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.chat-drawer .pk-result-actions button { flex: 1 1 auto; min-height: 36px; }
+
 .chat-drawer .pk-result-head { flex-wrap: wrap; }
 .chat-drawer .pk-result-actions button, .chat-drawer .pk-result-actions a { border-color: var(--wine); background: #fff; color: var(--wine); }
 .chat-drawer .assistant-composer { flex: 0 0 auto; padding: 11px 16px 14px; border-top-color: var(--wine-stroke); background: #fff; }

@@ -23,6 +23,8 @@ export type LocalVariant = {
   ram_gb: number;
   storage_gb: number;
   chipset: string;
+  battery_mah?: number | null;
+  display_refresh_hz?: number | null;
   camera_score: string;
   gaming_score: string;
   battery_score: string;
