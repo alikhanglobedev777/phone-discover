@@ -93,8 +93,37 @@ export type CatalogPhoneDetail = {
   operating_system: string;
   primary_image_url: string;
   detail_api_url: string;
+  last_verified_at?: string | null;
   variants: { ram_gb: number; storage_gb: number; chipset: string; battery_mah: number | null; display_refresh_hz: number | null }[];
   specification_sections: { name: string; items: { label: string; value: string }[] }[];
+};
+
+export type SpecsRecommendation = {
+  slug: string;
+  brand: string;
+  name: string;
+  summary: string;
+  primary_image_url: string;
+  last_verified_at: string | null;
+  editorial_fit: number | null;
+  dimension_scores: Record<"camera" | "gaming" | "battery", number | null>;
+  missing_scores: string[];
+  strengths: string[];
+  facts: string[];
+  price_status: "not_verified_for_filters";
+  evidence_label: string;
+};
+
+export type PhoneComparison = {
+  phones: { slug: string; name: string }[];
+  dimensions: {
+    dimension: string;
+    first_score: number | null;
+    second_score: number | null;
+    leader_slug: string | null;
+    note: string;
+  }[];
+  notice: string;
 };
 
 export type ConversationResponse = {
@@ -105,6 +134,8 @@ export type ConversationResponse = {
   explanation: string;
   results: LocalResult[];
   catalog_details?: CatalogPhoneDetail[];
+  specs_results?: SpecsRecommendation[];
+  comparison?: PhoneComparison | null;
   count: number;
   needs_research: boolean;
   research_reason: string | null;
