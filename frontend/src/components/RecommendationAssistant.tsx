@@ -36,7 +36,8 @@ const PRIORITIES = ["camera", "gaming", "battery", "display", "value"];
 const QUICK_PROMPTS = [
   "Lahore mein 80 hazar tak used PTA approved gaming phone",
   "Best box pack camera phone under 120k in Karachi",
-  "Samsung mein batao",
+  "Compare it with Pixel 7a",
+  "Show only PTA-approved options",
 ];
 
 function uuid() {
