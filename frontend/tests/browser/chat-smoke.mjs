@@ -77,7 +77,11 @@ try {
     page.on("pageerror", (error) => errors.push(error.message));
     await mockApi(page);
     await page.goto(BASE,{waitUntil:"domcontentloaded"});
-    await page.getByRole("button",{name:"Open Phone Discover assistant"}).click();
+    // Initial catalog queries may replace React's first launcher node during
+    // hydration. Wait for it to stabilize before issuing a real click.
+    await page.locator(".chat-launcher").waitFor({state:"visible"});
+    await page.waitForTimeout(1200);
+    await page.locator(".chat-launcher").click({force:true,timeout:10000});
     const dialog = page.getByRole("dialog",{name:/Phone Discover assistant/});
     await dialog.waitFor();
     await dialog.locator(".assistant-composer textarea").fill("Google Pixel 7a information");
