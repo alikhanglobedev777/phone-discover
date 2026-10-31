@@ -44,6 +44,68 @@ class CatalogDetailChatTests(TestCase):
         self.assertIn("price is not available", response.data["explanation"].lower())
         research.assert_not_called()
 
+    def test_s26_ultra_is_never_replaced_by_plain_s26(self):
+        samsung = Brand.objects.create(name="Samsung", slug="samsung")
+        plain = Device.objects.create(
+            brand=samsung, name="Galaxy S26", slug="samsung-galaxy-s26",
+            is_published=True,
+        )
+        ultra = Device.objects.create(
+            brand=samsung, name="Galaxy S26 Ultra", slug="samsung-galaxy-s26-ultra",
+            is_published=True,
+        )
+        DeviceVariant.objects.create(
+            device=plain, name="8GB/128GB", ram_gb=8, storage_gb=128,
+        )
+        DeviceVariant.objects.create(
+            device=ultra, name="12GB/256GB", ram_gb=12, storage_gb=256,
+        )
+        client = APIClient()
+        for text in ("samsung s26 ultra", "s26 ultra",
+                     "Samsung Galaxy S26 Ultra", "Samsung S 26 Ultra"):
+            with self.subTest(message=text):
+                response = client.post(
+                    "/api/recommendations/converse/",
+                    {"message": text, "use_memory": False}, format="json",
+                )
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.data["criteria"]["device_query"], "Galaxy S26 Ultra")
+                self.assertEqual(
+                    [phone["slug"] for phone in response.data["catalog_details"]],
+                    ["samsung-galaxy-s26-ultra"],
+                )
+                self.assertIn("Galaxy S26 Ultra", response.data["explanation"])
+
+    def test_followup_ultra_replaces_remembered_regular_s26(self):
+        samsung = Brand.objects.create(name="Samsung", slug="samsung")
+        Device.objects.create(
+            brand=samsung, name="Galaxy S26", slug="samsung-galaxy-s26",
+            is_published=True,
+        )
+        Device.objects.create(
+            brand=samsung, name="Galaxy S26 Ultra",
+            slug="samsung-galaxy-s26-ultra", is_published=True,
+        )
+        client = APIClient()
+        first = client.post(
+            "/api/recommendations/converse/",
+            {"message": "Samsung Galaxy S26"}, format="json",
+        )
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(first.data["catalog_details"][0]["name"], "Galaxy S26")
+        second = client.post(
+            "/api/recommendations/converse/",
+            {"message": "s26 ultra", "session_id": first.data["session_id"]},
+            format="json",
+        )
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(second.data["criteria"]["device_query"], "Galaxy S26 Ultra")
+        self.assertEqual(
+            [phone["name"] for phone in second.data["catalog_details"]],
+            ["Galaxy S26 Ultra"],
+        )
+        self.assertTrue(second.data["memory_used"])
+
     def test_broad_camera_question_does_not_claim_exact_model(self):
         from .local_intent import parse_pakistan_intent
         self.assertNotIn("device_query", parse_pakistan_intent("best camera phone"))

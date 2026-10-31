@@ -165,6 +165,9 @@ def parse_pakistan_intent(message: str) -> dict:
             ("samsung", r"\b(?:samsung\s+)?galaxy\s+([asfmz]\s*\d{1,3}(?:\s+(?:ultra|plus|fe|5g))*)\b", "Galaxy "),
             ("samsung", r"\bsamsung\s+([asfmz]\s*\d{1,3}(?:\s+(?:ultra|plus|fe|5g))*)\b", "Galaxy "),
             ("samsung", r"\bsamsung\s+(?:galaxy\s+)?(\d{2}\s+(?:ultra|plus|fe)(?:\s+5g)?)\b", "Galaxy S"),
+            # A user may ask for "S26 Ultra" without repeating Samsung/Galaxy.
+            # Only match distinctive S-series suffixes, never a generic number.
+            ("samsung", r"\b(s\s*\d{2}\s+(?:ultra|plus|fe)(?:\s+5g)?)\b", "Galaxy "),
             ("xiaomi", r"\b(?:xiaomi\s+)?redmi\s+(note\s+\d{1,2}(?:\s+(?:pro|plus|5g))*)\b", "Redmi "),
             ("infinix", r"\binfinix\s+((?:note|hot|zero)\s+\d{1,3}(?:\s+(?:pro|plus|5g))*)\b", ""),
             ("tecno", r"\btecno\s+((?:camon|spark|pova)\s+\d{1,3}(?:\s+(?:pro|plus|5g))*)\b", ""),
