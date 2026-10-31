@@ -24,6 +24,7 @@ from .local_intent import parse_pakistan_intent
 from .model_identity import matches_phone_model
 from .catalog_details import exact_catalog_details, catalog_details_for_slugs
 from .catalog_advisor import catalog_mentions, specs_recommendations, compare_catalog_phones
+from .conversation_actions import comparison_requested, refine_previous_list, new_category_request, plain_brand_request
 from .services import (
     build_criteria,
     json_ready,
@@ -221,50 +222,74 @@ class PakistanConversationView(APIView):
         # Resolve names against the PUBLISHED catalog before asking an AI.
         # Longest model tokens win (S26 Ultra is never plain S26).
         mentions = catalog_mentions(validated["message"])
-        comparison_requested = bool(re.search(
-            r"\b(?:compare|comparison|versus|vs|which\s+(?:one|phone)\s+.*better|"
-            r"better\s+(?:camera|battery|gaming)\s+between)\b",
-            validated["message"], re.I,
-        ))
+        wants_comparison = comparison_requested(validated["message"])
+        parsed = parse_pakistan_intent(validated["message"])
         previous_slugs = previous.get("recent_device_slugs", [])
         if not isinstance(previous_slugs, list):
             previous_slugs = []
+        previous_slugs = [
+            slug for slug in previous_slugs[:5]
+            if isinstance(slug, str) and 0 < len(slug) <= 220
+        ]
+        filter_followup = (
+            not wants_comparison and not mentions and bool(previous_slugs)
+            and refine_previous_list(validated["message"], parsed, supplied_fields)
+        )
         comparison_slugs = []
-        if comparison_requested:
+        if wants_comparison:
             if len(mentions) >= 2:
                 comparison_slugs = [m["slug"] for m in mentions[:2]]
-            elif mentions and previous_slugs:
-                comparison_slugs = [previous_slugs[0], mentions[0]["slug"]]
-            elif len(previous_slugs) >= 2:
-                comparison_slugs = previous_slugs[:2]
+            elif mentions and len(previous_slugs) == 1:
+                older = next((slug for slug in previous_slugs
+                              if slug != mentions[0]["slug"]), None)
+                if older:
+                    comparison_slugs = [older, mentions[0]["slug"]]
+            elif not mentions and len(previous_slugs) == 2:
+                comparison_slugs = previous_slugs
         comparison = compare_catalog_phones(comparison_slugs, criteria["priorities"])
-        if mentions and comparison is None:
+        clarify_comparison = wants_comparison and comparison is None
+        if comparison:
+            # A compared pair is the new conversation focus, not an old
+            # brand/model restriction from either side of the comparison.
+            criteria["device_query"] = None
+            criteria["brand"] = None
+        elif mentions and not clarify_comparison:
             criteria["device_query"] = mentions[0]["name"]
             criteria["brand"] = mentions[0]["brand"]
-        elif not mentions and not comparison_requested and re.search(
-            r"\b(?:best|recommend|suggest|top)\b", validated["message"], re.I
-        ) and not re.search(r"\b(?:about|details|specs)\b", validated["message"], re.I):
-            # A new category recommendation must not remain stuck on an older
-            # exact phone. Other explicit conditions/budget can carry forward.
+        elif filter_followup:
+            # Refine the exact previously displayed shortlist; do not search
+            # unrelated phones or claim unpriced catalog specs meet PTA filters.
+            criteria["device_slugs"] = previous_slugs
+            if len(previous_slugs) != 1:
+                criteria["device_query"] = None
+                criteria["brand"] = None
+        elif not mentions and not wants_comparison and (
+            new_category_request(validated["message"]) or
+            plain_brand_request(validated["message"], parsed)
+        ):
             criteria["device_query"] = None
 
-        if comparison:
+        if comparison or clarify_comparison:
             summary = {"results": [], "count": 0, "needs_research": False,
                        "research_reason": None, "coverage_incomplete": False}
-            catalog_details = catalog_details_for_slugs(
+            catalog_details = (catalog_details_for_slugs(
                 [phone["slug"] for phone in comparison["phones"]]
-            )
+            ) if comparison else [])
             explanation = (
                 "Here is a local catalog comparison. A score only establishes an "
                 "editorial ordering where both phones have comparable data; "
                 "otherwise no winner is claimed."
+            ) if comparison else (
+                "Please name the two phones you want to compare. "
+                "I won't choose a pair from an ambiguous shortlist."
             )
         else:
             summary = rank_pakistan_phones(criteria)
             catalog_details = exact_catalog_details(criteria)
             explanation = local_explanation(criteria, summary)
         specs_results = []
-        if (not comparison and not catalog_details and not criteria.get("device_query")
+        if (not comparison and not clarify_comparison and not filter_followup
+                and not catalog_details and not criteria.get("device_query")
                 and criteria["priorities"]):
             # Keep price-evidenced cards first, then fill any remaining spaces
             # with explicitly UNPRICED catalog suggestions. Never mix the
@@ -274,6 +299,21 @@ class PakistanConversationView(APIView):
                 specs_results = specs_recommendations(
                     {**criteria, "max_results": remaining},
                     exclude_slugs=[item["device"]["slug"] for item in summary["results"]],
+                )
+        if filter_followup:
+            count = len(summary["results"])
+            if count:
+                explanation = (
+                    f"{count} previously discussed phone option(s) have eligible "
+                    "Pakistan price evidence for your new filters. Check each "
+                    "card for whether PTA approval was reported or independently checked."
+                )
+            else:
+                explanation = (
+                    "None of the previously discussed phones has eligible, "
+                    "verified price evidence matching these filters. "
+                    "I won't treat saved specifications as proof of PTA approval, "
+                    "price, condition or local availability."
                 )
         if specs_results and not summary["results"]:
             dims = ", ".join(criteria["priorities"])
@@ -289,20 +329,20 @@ class PakistanConversationView(APIView):
                 " Other phones are shown separately as specs-only candidates; "
                 "their price, PTA, condition and city eligibility is not verified."
             )
-        if not comparison and criteria.get("device_query") and not catalog_details and not summary["results"]:
+        if not comparison and not clarify_comparison and not filter_followup and criteria.get("device_query") and not catalog_details and not summary["results"]:
             # Never fall back to a sibling (e.g. S26 when S26 Ultra is requested).
             explanation = (
                 f"I could not find an exact published local catalog match for "
                 f"{criteria['device_query']}. I will not substitute a different model."
             )
-        if catalog_details and not comparison and not summary["results"]:
+        if catalog_details and not comparison and not clarify_comparison and not summary["results"]:
             phone = catalog_details[0]
             explanation = (
                 f"{phone['brand']} {phone['name']} is in the local catalog. "
                 "Its saved specifications are below. A verified matching Pakistan "
                 "price is not available for the selected filters."
             )
-        alternatives = (price_reference_alternatives(criteria, summary) if not comparison
+        alternatives = (price_reference_alternatives(criteria, summary) if not (comparison or clarify_comparison or filter_followup)
                         else {"results": [], "unconfirmed_filters": [], "notice": ""})
         if alternatives["results"]:
             explanation = (
@@ -314,11 +354,11 @@ class PakistanConversationView(APIView):
                     "notice": "External research was not requested."}
         automatic = bool(auto_research_enabled() and research_configured() and
                          not summary["results"] and not catalog_details and
-                         not specs_results and not comparison)
+                         not specs_results and not comparison and not clarify_comparison and not filter_followup)
         if validated["research"] or automatic:
-            if comparison:
+            if comparison or clarify_comparison or filter_followup:
                 research["status"] = "not_needed"
-                research["notice"] = "The two local catalog phones are compared without external research."
+                research["notice"] = "This is a local follow-up. Market evidence is never inferred from catalog specs."
             elif catalog_details and not summary["results"]:
                 research["status"] = "not_needed"
                 research["notice"] = "The exact phone is already in the local catalog; its specifications are shown below."
@@ -346,7 +386,7 @@ class PakistanConversationView(APIView):
         # General guidance is a separate opt-in AI capability, not price evidence.
         guidance = {"status": "not_requested", "text": "", "notice": "AI general guidance was not requested."}
         if validated["guidance"]:
-            if comparison or catalog_details or specs_results:
+            if comparison or clarify_comparison or filter_followup or catalog_details or specs_results:
                 guidance = {"status": "not_needed", "text": "",
                             "notice": "Published local catalog information is shown above."}
             elif summary["results"]:
@@ -363,6 +403,7 @@ class PakistanConversationView(APIView):
         if use_memory:
             displayed_slugs = (
                 [phone["slug"] for phone in comparison["phones"]] if comparison else
+                previous_slugs if clarify_comparison or filter_followup else
                 [phone["slug"] for phone in catalog_details] or
                 [row["device"]["slug"] for row in results] or
                 [phone["slug"] for phone in specs_results] or
