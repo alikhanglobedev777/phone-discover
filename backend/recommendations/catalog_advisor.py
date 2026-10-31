@@ -9,6 +9,7 @@ from django.db.models import Q
 
 from catalog.models import Device, DeviceVariant
 from .model_identity import matches_phone_model
+from .evidence_quality import evidence_prefetch, public_evidence, descriptive_facts, factual_comparison
 
 MAX_DISCOVERY_VARIANTS = 750
 QUALITY_DIMENSIONS = ("camera", "gaming", "battery")
@@ -104,6 +105,23 @@ def _variant_facts(variant):
     return facts
 
 
+def _spec_coverage(variant, priorities):
+    """Count available *types* of relevant facts, not performance points."""
+    counts = {}
+    sections = list(variant.device.specification_sections.all())
+    camera_items = [
+        item for section in sections
+        for item in section.items.all()
+        if (section.name.casefold() == "camera" or
+            (section.name.casefold() == "features" and item.label.casefold() in ("front", "video", "main")))
+        and item.value.strip()
+    ]
+    counts["camera"] = min(3, len(camera_items))
+    counts["gaming"] = int(bool(variant.chipset)) + int(bool(variant.display_refresh_hz))
+    counts["battery"] = int(bool(variant.battery_mah))
+    return sum(counts.get(key, 0) for key in priorities), counts
+
+
 def specs_recommendations(criteria, *, exclude_slugs=()):
     """Read-only specs-based shortlist; never assume price or market eligibility."""
     priorities = [x for x in criteria.get("priorities", []) if x in QUALITY_DIMENSIONS]
@@ -111,7 +129,8 @@ def specs_recommendations(criteria, *, exclude_slugs=()):
         return []
     variants = (DeviceVariant.objects.filter(device__is_published=True)
                 .exclude(device__status__in=("rumored", "announced"))
-                .select_related("device", "device__brand"))
+                .select_related("device", "device__brand")
+                .prefetch_related("device__specification_sections__items"))
     if criteria.get("brand"):
         variants = variants.filter(device__brand__slug__iexact=criteria["brand"])
     if criteria.get("ram_min"):
@@ -131,12 +150,22 @@ def specs_recommendations(criteria, *, exclude_slugs=()):
         missing = [key for key in priorities if scores[key] is None]
         fit = round(sum(available) / len(available), 1) if available else None
         candidate = (fit is None, len(missing), -(fit or 0), variant.device.slug)
+        coverage, available_facts = _spec_coverage(variant, priorities)
+        # Scores are explicitly editorial and never counted as independent
+        # benchmarks. With absent scores, sort by recorded fact coverage only.
+        candidate = (fit is None, len(missing), -(fit or 0), -coverage, variant.device.slug)
         existing = by_device.get(variant.device_id)
         if existing is None or candidate < existing[0]:
-            by_device[variant.device_id] = (candidate, variant, fit, scores, missing)
+            by_device[variant.device_id] = (candidate, variant, fit, scores, missing, available_facts)
     ranked = sorted(by_device.values(), key=lambda item: item[0])[:criteria.get("max_results", 3)]
+    evidence_map = {
+        p.slug: public_evidence(p)
+        for p in Device.objects.filter(
+            slug__in=[entry[1].device.slug for entry in ranked]
+        ).select_related("brand").prefetch_related(evidence_prefetch())
+    }
     result = []
-    for _, variant, fit, scores, missing in ranked:
+    for _, variant, fit, scores, missing, available_facts in ranked:
         device = variant.device
         strengths = [
             f"{key.title()} editorial score: {scores[key]:.0f}/100"
@@ -150,8 +179,14 @@ def specs_recommendations(criteria, *, exclude_slugs=()):
             "last_verified_at": device.last_verified_at.isoformat() if device.last_verified_at else None,
             "editorial_fit": fit, "dimension_scores": scores, "missing_scores": missing,
             "strengths": strengths, "facts": _variant_facts(variant),
+            "spec_coverage": available_facts,
+            "evidence": evidence_map.get(device.slug),
             "price_status": "not_verified_for_filters",
-            "evidence_label": "Catalog editorial estimates, not independently measured benchmarks",
+            "evidence_label": (
+                "Unattributed catalog editorial estimates; not independent benchmarks"
+                if fit is not None else
+                "Catalog specification examples, not a ranked performance verdict"
+            ),
         })
     return result
 
@@ -162,7 +197,8 @@ def compare_catalog_phones(slugs, priorities=()):
     if len(unique) != 2:
         return None
     phones = list(Device.objects.filter(is_published=True, slug__in=unique)
-                  .select_related("brand").prefetch_related("variants"))
+                  .select_related("brand")
+                  .prefetch_related("variants", evidence_prefetch()))
     by_slug = {p.slug: p for p in phones}
     if len(by_slug) != 2:
         return None
@@ -177,7 +213,8 @@ def compare_catalog_phones(slugs, priorities=()):
             return (len(known), sum(known), variant.ram_gb, variant.storage_gb)
         variant = max(variants, key=strength) if variants else None
         return {"slug": device.slug, "name": f"{device.brand.name} {device.name}",
-                "variant": variant, "scores": _variant_scores(variant) if variant else {
+                "variant": variant, "evidence": public_evidence(device),
+                "scores": _variant_scores(variant) if variant else {
                     k: None for k in QUALITY_DIMENSIONS}}
     first, second = (snapshot(p) for p in devices)
     dimensions = list(dict.fromkeys(
@@ -194,7 +231,15 @@ def compare_catalog_phones(slugs, priorities=()):
         rows.append({"dimension": key, "first_score": a, "second_score": b,
                      "leader_slug": leader, "note": note})
     return {
-        "phones": [{"slug": p["slug"], "name": p["name"]} for p in (first, second)],
+        "phones": [{"slug": p["slug"], "name": p["name"], "evidence": p["evidence"]}
+                   for p in (first, second)],
         "dimensions": rows,
-        "notice": "Compared local catalog estimates only. Price, PTA status and live availability are not inferred.",
+        "hardware_facts": factual_comparison(first["variant"], second["variant"]),
+        "notice": (
+            "Compare recorded hardware facts below. Scores, when present, are "
+            "unattributed catalog editorial estimates, not benchmarks. "
+            "Missing scores mean NO performance winner. Battery mAh is capacity, "
+            "not endurance; camera megapixels alone do not establish photo quality. "
+            "Pakistan prices, PTA status and value-for-money are not inferred."
+        ),
     }
