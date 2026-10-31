@@ -341,7 +341,7 @@ export function RecommendationAssistant({ onOpenDevice, onCompareDevice, marketR
                   <p className="pk-evidence-note">{entry.comparison.notice}</p>
                   <div className="pk-result-grid">
                     {entry.comparison.phones.map((phone) => <div key={phone.slug} className="pk-result-card">
-                      <PhoneCardHeader slug={phone.slug} brand={""} name={phone.name}
+                      <PhoneCardHeader slug={phone.slug} brand={entry.catalogDetails?.find((detail) => detail.slug === phone.slug)?.brand ?? "Phone"} name={phone.name}
                         image={entry.catalogDetails?.find((detail) => detail.slug === phone.slug)?.primary_image_url ?? ""}
                         caption="Comparison" onOpenDevice={onOpenDevice} />
                       <div className="pk-result-actions">
