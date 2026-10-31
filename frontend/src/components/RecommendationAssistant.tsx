@@ -214,7 +214,7 @@ export function RecommendationAssistant({ onOpenDevice, onCompareDevice, marketR
       }
       setMessages((current) => [...current, {
         id: response.query_id || uuid(), role: "assistant", text: response.explanation,
-        results: response.results, needsResearch: response.needs_research,
+        results: response.results, catalogDetails: response.catalog_details, needsResearch: response.needs_research,
         research: response.research, guidance: response.guidance, memoryUsed: response.memory_used,
         filters: activeFilterSummary(response.criteria), references: response.research.results?.length ? undefined : response.price_references,
       }]);
@@ -281,6 +281,23 @@ export function RecommendationAssistant({ onOpenDevice, onCompareDevice, marketR
                 {entry.memoryUsed && <p className="pk-evidence-note">Preferences carried forward from this session.</p>}
                 {entry.filters && <p className="pk-evidence-note">Filters used — {entry.filters}</p>}
                 {!!entry.references?.results.length && <section className="pk-reference-results" aria-label="Price references with unconfirmed city or PTA status"><h3>Price references — city/PTA unconfirmed</h3><p className="pk-evidence-note">{entry.references.notice}</p><div className="pk-result-grid">{entry.references.results.map((result) => <PriceCard key={`${entry.id}-reference-${result.device.slug}`} result={result} onOpenDevice={onOpenDevice} onCompareDevice={onCompareDevice} />)}</div></section>}
+                {entry.catalogDetails?.map((phone) => (
+                  <p key={`link-${phone.slug}`} className="chat-phone-link-row">
+                    <a
+                      href={`/?device=${encodeURIComponent(phone.slug)}`}
+                      aria-label={`Open ${phone.brand} ${phone.name} details in a modal`}
+                      onClick={(event) => {
+                        // Use the in-app phone modal for normal clicks while
+                        // retaining a working shareable URL for new tabs.
+                        if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                        event.preventDefault();
+                        onOpenDevice(phone.slug);
+                      }}
+                    >
+                      View {phone.brand} {phone.name} details ↗
+                    </a>
+                  </p>
+                ))}
                 {entry.catalogDetails?.map((phone) => <article className="pk-result-card" key={phone.slug}>
                    <div className="pk-result-head">
                      {phone.primary_image_url ? <img src={phone.primary_image_url} alt="" loading="lazy" /> : <span className="pk-phone-placeholder" aria-hidden="true">▣</span>}
