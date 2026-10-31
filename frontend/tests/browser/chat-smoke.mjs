@@ -93,15 +93,21 @@ try {
     assert.ok(await dialog.getByText("Catalog specs not independently verified").count() > 0);
     assert.ok(await dialog.getByText("No independently reviewed source link is available.").count() > 0);
     const card = dialog.locator(".pk-result-card").filter({hasText:"Pixel 7a"});
-    await card.getByRole("button",{name:"+ Compare"}).click();
-    assert.match(page.url(),/compare=google-pixel-7a/);
     const bounds = await dialog.boundingBox();
     assert.ok(bounds,"Assistant dialog visible");
     assert.ok(bounds.x >= -2 && bounds.x + bounds.width <= size.width + 2,
       "Dialog exceeds viewport " + size.width);
+    // The app intentionally closes the chat before opening phone details.
     await card.getByRole("link",{name:"Pixel 7a",exact:true}).click();
     await page.getByRole("dialog",{name:/Pixel 7a/}).waitFor({timeout:15000});
     assert.match(page.url(),/device=google-pixel-7a/);
+    await page.getByRole("button",{name:"Close details"}).click();
+    await page.getByRole("button",{name:"Open Phone Discover assistant"}).click();
+    const reopened = page.getByRole("dialog",{name:/Phone Discover assistant/});
+    await reopened.locator(".pk-result-card").filter({hasText:"Pixel 7a"})
+      .getByRole("button",{name:"+ Compare"}).click();
+    // Compare intentionally closes the drawer; the shortlist remains in the URL.
+    assert.match(page.url(),/compare=google-pixel-7a/);
     assert.deepEqual(errors,[],"Browser errors at " + size.width);
     console.log("PASS: " + size.width + "px chat, source badge, compare and detail modal");
     await context.close();
