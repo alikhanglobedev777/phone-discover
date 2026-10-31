@@ -239,7 +239,7 @@ class PakistanConversationView(APIView):
         if wants_comparison:
             if len(mentions) >= 2:
                 comparison_slugs = [m["slug"] for m in mentions[:2]]
-            elif mentions and previous_slugs:
+            elif mentions and len(previous_slugs) == 1:
                 older = next((slug for slug in previous_slugs
                               if slug != mentions[0]["slug"]), None)
                 if older:
