@@ -222,8 +222,8 @@ class PakistanConversationView(APIView):
         # Longest model tokens win (S26 Ultra is never plain S26).
         mentions = catalog_mentions(validated["message"])
         comparison_requested = bool(re.search(
-            r"\\b(?:compare|comparison|versus|vs|which\\s+(?:one|phone)\\s+.*better|"
-            r"better\\s+(?:camera|battery|gaming)\\s+between)\\b",
+            r"\b(?:compare|comparison|versus|vs|which\s+(?:one|phone)\s+.*better|"
+            r"better\s+(?:camera|battery|gaming)\s+between)\b",
             validated["message"], re.I,
         ))
         previous_slugs = previous.get("recent_device_slugs", [])
@@ -242,8 +242,8 @@ class PakistanConversationView(APIView):
             criteria["device_query"] = mentions[0]["name"]
             criteria["brand"] = mentions[0]["brand"]
         elif not mentions and not comparison_requested and re.search(
-            r"\\b(?:best|recommend|suggest|top)\\b", validated["message"], re.I
-        ) and not re.search(r"\\b(?:about|details|specs)\\b", validated["message"], re.I):
+            r"\b(?:best|recommend|suggest|top)\b", validated["message"], re.I
+        ) and not re.search(r"\b(?:about|details|specs)\b", validated["message"], re.I):
             # A new category recommendation must not remain stuck on an older
             # exact phone. Other explicit conditions/budget can carry forward.
             criteria["device_query"] = None
