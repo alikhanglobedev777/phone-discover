@@ -14,10 +14,11 @@ test("chat retains specs-only catalog details returned by the API", () => {
 });
 
 test("catalog phone links open the existing modal without losing deep linking", () => {
-  assert.ok(chat.includes("href={`/?device=${encodeURIComponent(phone.slug)}`}"));
+  assert.ok(chat.includes("const href = `/?device=${encodeURIComponent(slug)}`"));
   assert.ok(chat.includes("event.preventDefault();"));
+  assert.ok(chat.includes("function PhoneCardHeader("));
   assert.ok(chat.includes("onOpenDevice(phone.slug);"));
   assert.ok(drawer.includes("closeDrawer(); onOpenDevice(slug);"));
   assert.ok(app.includes("<PhoneDetail device={activeQuery.data}"));
-  assert.ok(css.includes(".chat-drawer .chat-phone-link-row a"));
+  assert.ok(css.includes(".chat-drawer .chat-card-title-link"));
 });
