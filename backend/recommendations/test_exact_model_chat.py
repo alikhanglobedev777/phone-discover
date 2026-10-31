@@ -34,6 +34,8 @@ class ExactModelChatTests(SimpleTestCase):
         for message in (
             "samsung 26 ultra",
             "samsung s26 ultra",
+            "s26 ultra",
+            "S 26 Ultra",
             "Samsung S 26 Ultra",
             "Samsung Galaxy 26 Ultra",
             "Samsung Galaxy S26 Ultra",
