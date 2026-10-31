@@ -62,6 +62,10 @@ async function mockApi(page) {
     }
     if (url.pathname === "/api/catalog/devices/" + PHONE_SLUG + "/") return route.fulfill(json(phone));
     if (route.request().method() === "DELETE") return route.fulfill({status:204,body:""});
+    if (url.pathname === "/api/catalog/devices/search-index/" ||
+        url.pathname === "/api/catalog/devices/latest/") {
+      return route.fulfill(json([]));
+    }
     if (url.pathname === "/api/catalog/brands/" || url.pathname === "/api/catalog/devices/")
       return route.fulfill(json({count:0,next:null,previous:null,results:[]}));
     return route.fulfill(json({count:0,next:null,previous:null,results:[]}));
@@ -80,8 +84,7 @@ try {
     // Initial catalog queries may replace React's first launcher node during
     // hydration. Wait for it to stabilize before issuing a real click.
     await page.locator(".chat-launcher").waitFor({state:"visible"});
-    await page.waitForTimeout(1200);
-    await page.locator(".chat-launcher").click({force:true,timeout:10000});
+    await page.locator(".chat-launcher").click({timeout:15000});
     const dialog = page.getByRole("dialog",{name:/Phone Discover assistant/});
     await dialog.waitFor();
     await dialog.locator(".assistant-composer textarea").fill("Google Pixel 7a information");
