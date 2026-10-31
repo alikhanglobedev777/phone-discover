@@ -10,6 +10,7 @@ from django.db.models import Q
 from catalog.models import Device, DeviceVariant
 from .model_identity import matches_phone_model
 from .evidence_quality import evidence_prefetch, public_evidence, descriptive_facts, factual_comparison
+from catalog.pricing import price_summaries_for_device
 
 MAX_DISCOVERY_VARIANTS = 750
 QUALITY_DIMENSIONS = ("camera", "gaming", "battery")
@@ -191,6 +192,66 @@ def specs_recommendations(criteria, *, exclude_slugs=()):
     return result
 
 
+def _comparable_price_samples(first, second):
+    """Compare only same-condition, same-city, same-PTA, same-storage offers.
+
+    Observed ranges may overlap; never claim one phone has better VALUE absent
+    independent performance evidence and fully comparable current prices.
+    """
+    a, b = first, second
+    samples = []
+    for entry in (a, b):
+        groups = price_summaries_for_device(entry["device"].id)
+        variant_storage = {
+            variant.id: variant.storage_gb
+            for variant in entry["device"].variants.all()
+        }
+        mapped = {}
+        for row in groups:
+            key = (
+                row["condition"], row["grade"], row["pta_status"],
+                row["pta_verification"], row["city"].strip().casefold(),
+                variant_storage.get(row["variant_id"]),
+            )
+            # Require reviewed/admin documented observations, not simply
+            # externally reported web results.
+            if row["evidence_type"] not in ("linked_sources", "admin_documented"):
+                continue
+            mapped[key] = row
+        samples.append(mapped)
+    shared = sorted(set(samples[0]) & set(samples[1]), key=str)
+    if not shared:
+        return {
+            "status": "not_comparable", "note": (
+                "No fresh reviewed PKR observations match on storage, condition, "
+                "city, PTA status and evidence level. Cannot compare prices or value."
+            ),
+        }
+    key = shared[0]
+    left, right = samples[0][key], samples[1][key]
+    from decimal import Decimal
+    lower = (
+        a["slug"] if Decimal(left["observed_max_pkr"]) < Decimal(right["observed_min_pkr"])
+        else b["slug"] if Decimal(right["observed_max_pkr"]) < Decimal(left["observed_min_pkr"])
+        else None
+    )
+    return {
+        "status": "comparable_observations",
+        "condition": key[0], "city": left["city"], "pta_status": key[2],
+        "pta_verification": key[3], "storage_gb": key[5],
+        "first_min_pkr": left["observed_min_pkr"],
+        "first_max_pkr": left["observed_max_pkr"],
+        "second_min_pkr": right["observed_min_pkr"],
+        "second_max_pkr": right["observed_max_pkr"],
+        "lower_observed_price_slug": lower,
+        "note": (
+            "Reviewed, observed PKR asking-price ranges for matching configurations; "
+            "not live stock or proof of value-for-money. Overlapping ranges have no "
+            "clear lower-priced option."
+        ),
+    }
+
+
 def compare_catalog_phones(slugs, priorities=()):
     """Compare two specific published models using documented local scores."""
     unique = list(dict.fromkeys(s for s in slugs if isinstance(s, str)))[:2]
@@ -213,6 +274,7 @@ def compare_catalog_phones(slugs, priorities=()):
             return (len(known), sum(known), variant.ram_gb, variant.storage_gb)
         variant = max(variants, key=strength) if variants else None
         return {"slug": device.slug, "name": f"{device.brand.name} {device.name}",
+                "device": device,
                 "variant": variant, "evidence": public_evidence(device),
                 "scores": _variant_scores(variant) if variant else {
                     k: None for k in QUALITY_DIMENSIONS}}
@@ -235,6 +297,7 @@ def compare_catalog_phones(slugs, priorities=()):
                    for p in (first, second)],
         "dimensions": rows,
         "hardware_facts": factual_comparison(first["variant"], second["variant"]),
+        "market_price_comparison": _comparable_price_samples(first, second),
         "notice": (
             "Compare recorded hardware facts below. Scores, when present, are "
             "unattributed catalog editorial estimates, not benchmarks. "
