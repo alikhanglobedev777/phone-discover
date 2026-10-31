@@ -591,3 +591,18 @@ h1 { margin: 16px 0 18px; font-size: clamp(44px, 4.8vw, 69px); }
 
 /* Keep each handset card content-sized: no artificial gap above price/details. */
 .phone-card .phone-card-colors { margin: 8px 0 0; min-height: 0; }
+
+
+/* Evidence provenance and factual side-by-side comparison in both chat sizes. */
+.chat-drawer .chat-evidence { margin: 10px 0; padding: 9px; border: 1px solid #ecdee4; border-radius: 9px; background: #fcf9fa; }
+.chat-drawer .chat-evidence ul { margin: 6px 0; padding-left: 16px; font-size: 11px; line-height: 1.5; }
+.chat-drawer .chat-evidence li { overflow-wrap: anywhere; }
+.chat-drawer .chat-evidence a { color: var(--wine); text-decoration: underline; text-underline-offset: 2px; }
+.chat-drawer .chat-evidence a:focus-visible { outline: 2px solid var(--wine); outline-offset: 2px; }
+.chat-drawer .chat-catalog-quality { padding: 8px 14px; margin: 0; border-bottom: 1px solid #eadce2; font-size: 10px; line-height: 1.5; }
+.chat-drawer .chat-compare-facts, .chat-drawer .chat-compare-price { margin: 14px 0; }
+.chat-drawer .chat-compare-facts h4, .chat-drawer .chat-compare-price h4 { font-size: 12px; margin: 0 0 8px; }
+.chat-drawer .chat-compare-table-scroll { max-width: 100%; overflow-x: auto; }
+.chat-drawer .chat-compare-facts table { width: 100%; border-collapse: collapse; font-size: 11px; min-width: 270px; }
+.chat-drawer .chat-compare-facts th, .chat-drawer .chat-compare-facts td { border: 1px solid #eadce2; text-align: left; padding: 7px; overflow-wrap: anywhere; }
+.chat-drawer .chat-compare-facts thead { background: #fcf4f7; }
