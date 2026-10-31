@@ -5,6 +5,8 @@ unpriced results must NEVER claim a budget, condition, PTA or city match.
 """
 import re
 
+from django.db.models import Q
+
 from catalog.models import Device, DeviceVariant
 from .model_identity import matches_phone_model
 
@@ -44,10 +46,18 @@ def catalog_mentions(message, *, max_matches=3):
     A phone's alias cannot consume part of another recognized phone name.
     This works for any catalog brand, without appending a new regex per model.
     """
-    if not message or not re.search(r"\d", message):
+    if not message:
         return []
+    # Narrow the database scan using model-number fragments, rather than
+    # compiling aliases for every published phone on every budget query.
+    tokens = list(dict.fromkeys(re.findall(r"\b[a-z]*\d+[a-z]*\b", message.casefold())))[:8]
+    if not tokens:
+        return []
+    names = Q()
+    for token in tokens:
+        names |= Q(name__icontains=token)
     matches = []
-    qs = (Device.objects.filter(is_published=True)
+    qs = (Device.objects.filter(is_published=True).filter(names)
           .select_related("brand").only("slug", "name", "brand__name", "brand__slug"))
     for device in qs.iterator(chunk_size=500):
         for _, regex in _alias_patterns(device.brand.name, device.name):
