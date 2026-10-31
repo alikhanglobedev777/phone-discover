@@ -1,10 +1,16 @@
 """Regressions for catalog-first name matching, specs-only ranking and follow-ups."""
 from unittest.mock import patch
+from datetime import timedelta
+from decimal import Decimal
 
 from django.test import TestCase, override_settings
+from django.utils import timezone
 from rest_framework.test import APIClient
 
-from catalog.models import Brand, Device, DeviceVariant, SpecificationItem, SpecificationSection
+from catalog.models import (
+    Brand, Device, DeviceVariant, SpecificationItem, SpecificationSection,
+    ResearchSource, MarketPriceObservation, ReviewStatus,
+)
 from .catalog_advisor import catalog_mentions, specs_recommendations, compare_catalog_phones
 
 
@@ -114,6 +120,28 @@ class CatalogAdvisorTests(TestCase):
         self.assertIn("not verified", response.data["explanation"])
         self.assertEqual(response.data["criteria"]["budget_pkr"], "80000")
         self.assertEqual(response.data["criteria"]["pta_status"], "approved")
+
+    def test_one_priced_phone_is_not_mixed_with_unpriced_candidates(self):
+        source = ResearchSource.objects.create(
+            url="https://example.org/price-review", title="Permitted price evidence",
+            reuse_status=ResearchSource.ReuseStatus.PERMITTED,
+            reuse_notes="Use permitted in this regression fixture.",
+        )
+        MarketPriceObservation.objects.create(
+            variant=self.s26.variants.first(), source=source,
+            condition="used", pta_status="approved", pta_verification="reported",
+            price_min_pkr=Decimal("65000"), price_max_pkr=Decimal("68000"),
+            observed_at=timezone.now() - timedelta(hours=2),
+            reviewed_at=timezone.now() - timedelta(hours=1),
+            verification_status=ReviewStatus.VERIFIED, listing_status="active",
+        )
+        response = self.ask("best camera phone under 80k")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([r["device"]["slug"] for r in response.data["results"]], ["s26"])
+        self.assertEqual(response.data["specs_results"][0]["slug"], "s26-ultra")
+        self.assertEqual(response.data["specs_results"][0]["price_status"],
+                         "not_verified_for_filters")
+        self.assertIn("specs-only", response.data["explanation"])
 
     def test_gaming_and_battery_priorities_change_specs_ranking(self):
         gaming = self.ask("best gaming phone")
