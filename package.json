@@ -4,7 +4,6 @@
   "version": "1.0.0",
   "description": "One-command local development for the Phone Discover Django backend",
   "dependencies": {
-    "dotenv": "^8.2.0",
     "node-fetch": "^3.3.2"
   },
   "scripts": {
