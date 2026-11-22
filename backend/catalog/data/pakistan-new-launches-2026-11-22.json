@@ -1,0 +1,97 @@
+{
+  "description": "Pakistan new launches, independently sourced 2026-11-22. No price observations. Generated concept illustrations are not official product photos.",
+  "records": [
+    {
+      "brand": "Vivo",
+      "name": "V80",
+      "slug": "vivo-v80",
+      "local_launch": "2026-11-10",
+      "variants": [
+        [
+          8,
+          256
+        ],
+        [
+          8,
+          512
+        ]
+      ],
+      "chipset": "Qualcomm Snapdragon 7 Gen 4",
+      "battery_mah": 7200,
+      "refresh_hz": 144,
+      "os": "Android 16",
+      "sources": [
+        "https://www.vivo.com/pk/about-vivo/news/vivo-V80-Capture-Rise",
+        "https://www.vivo.com/pk/products/param/V80"
+      ],
+      "image": "/catalog-concepts/2026/vivo-v80.svg",
+      "image_kind": "ai_generated_illustration"
+    },
+    {
+      "brand": "Motorola",
+      "name": "Moto G47 5G",
+      "slug": "motorola-moto-g47-5g",
+      "local_launch": "2026-11-16",
+      "variants": [
+        [
+          8,
+          128
+        ]
+      ],
+      "chipset": "MediaTek Dimensity 6300",
+      "battery_mah": 5200,
+      "refresh_hz": 120,
+      "os": "Android 16",
+      "sources": [
+        "https://www.whatmobile.com.pk/motorola-moto-g47-5g-now-official-in-pakistan-with-5200mah-battery-108mp-camera-news-7637",
+        "https://www.whatmobile.com.pk/Motorola_Moto-G47"
+      ],
+      "image": "/catalog-concepts/2026/motorola-moto-g47-5g.svg",
+      "image_kind": "ai_generated_illustration"
+    },
+    {
+      "brand": "Xiaomi",
+      "name": "Redmi 17 5G",
+      "slug": "xiaomi-redmi-17-5g",
+      "local_launch": "2026-11-11",
+      "variants": [
+        [
+          4,
+          128
+        ]
+      ],
+      "chipset": "Qualcomm Snapdragon 4 Gen 5",
+      "battery_mah": 7500,
+      "refresh_hz": null,
+      "os": "",
+      "sources": [
+        "https://www.whatmobile.com.pk/xiaomi-launches-redmi-17-series-with-7500mah-battery-and-69-inch-screen-news-7628",
+        "https://www.whatmobile.com.pk/Xiaomi_Redmi-17-5G"
+      ],
+      "image": "/catalog-concepts/2026/xiaomi-redmi-17-5g.svg",
+      "image_kind": "ai_generated_illustration"
+    },
+    {
+      "brand": "Nubia",
+      "name": "Neo 5 Pro 5G",
+      "slug": "nubia-neo-5-pro-5g",
+      "local_launch": "2026-10-31",
+      "variants": [
+        [
+          12,
+          256
+        ]
+      ],
+      "chipset": "Unisoc T9100",
+      "battery_mah": 6000,
+      "refresh_hz": 120,
+      "os": "",
+      "sources": [
+        "https://www.nubia.com/pk/",
+        "https://www.whatmobile.com.pk/nubia-launches-neo-5-max-padphone-5g-and-neo-5-pro-5g-in-pakistan-news-7601"
+      ],
+      "image": "/catalog-concepts/2026/nubia-neo-5-pro-5g.svg",
+      "image_kind": "ai_generated_illustration"
+    }
+  ]
+}
