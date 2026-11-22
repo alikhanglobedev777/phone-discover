@@ -23,8 +23,14 @@ from .local_rank import interpret_local_request, rank_pakistan_phones, local_exp
 from .local_intent import parse_pakistan_intent
 from .model_identity import matches_phone_model
 from .catalog_details import exact_catalog_details, catalog_details_for_slugs
-from .catalog_advisor import catalog_mentions, specs_recommendations, compare_catalog_phones
-from .conversation_actions import comparison_requested, refine_previous_list, new_category_request, plain_brand_request
+from .catalog_advisor import (
+    catalog_mentions, compare_catalog_phones, comparison_advice,
+    named_comparison_slugs, specs_recommendations,
+)
+from .conversation_actions import (
+    comparison_requested, named_pair_parts, new_category_request, plain_brand_request,
+    refine_previous_list, single_choice_requested,
+)
 from .services import (
     build_criteria,
     json_ready,
@@ -221,9 +227,17 @@ class PakistanConversationView(APIView):
 
         # Resolve names against the PUBLISHED catalog before asking an AI.
         # Longest model tokens win (S26 Ultra is never plain S26).
-        mentions = catalog_mentions(validated["message"])
-        wants_comparison = comparison_requested(validated["message"])
-        parsed = parse_pakistan_intent(validated["message"])
+        message = validated["message"]
+        mentions = catalog_mentions(message)
+        parts = named_pair_parts(message)
+        choose_one = single_choice_requested(message) and previous.get("compared_pair", False)
+        wants_comparison = comparison_requested(message) or choose_one
+        if parts:
+            start = message.index(parts[0])
+            end = start + len(parts[0])
+            if any(start <= match["start"] < end for match in mentions):
+                wants_comparison = True
+        parsed = parse_pakistan_intent(message)
         previous_slugs = previous.get("recent_device_slugs", [])
         if not isinstance(previous_slugs, list):
             previous_slugs = []
@@ -237,7 +251,9 @@ class PakistanConversationView(APIView):
         )
         comparison_slugs = []
         if wants_comparison:
-            if len(mentions) >= 2:
+            if parts:
+                comparison_slugs = named_comparison_slugs(*parts)
+            elif len(mentions) >= 2:
                 comparison_slugs = [m["slug"] for m in mentions[:2]]
             elif mentions and len(previous_slugs) == 1:
                 older = next((slug for slug in previous_slugs
@@ -274,12 +290,8 @@ class PakistanConversationView(APIView):
                        "research_reason": None, "coverage_incomplete": False}
             catalog_details = (catalog_details_for_slugs(
                 [phone["slug"] for phone in comparison["phones"]]
-            ) if comparison else [])
-            explanation = (
-                "Here is a local catalog comparison. A score only establishes an "
-                "editorial ordering where both phones have comparable data; "
-                "otherwise no winner is claimed."
-            ) if comparison else (
+            ) if comparison and not choose_one else [])
+            explanation = comparison_advice(comparison, criteria["priorities"]) if comparison else (
                 "Please name the two phones you want to compare. "
                 "I won't choose a pair from an ambiguous shortlist."
             )
@@ -409,7 +421,7 @@ class PakistanConversationView(APIView):
                 [phone["slug"] for phone in specs_results] or
                 previous_slugs
             )
-            store_context(criteria, recent_device_slugs=displayed_slugs)
+            store_context(criteria, recent_device_slugs=displayed_slugs, compared_pair=bool(comparison))
         # Preserve existing analytics/retention behavior; never store provider output.
         query = RecommendationQuery.objects.create(
             session_id=criteria["session_id"], query_text=criteria["message"][:500],
@@ -424,7 +436,7 @@ class PakistanConversationView(APIView):
             "price_references": alternatives,
             "catalog_details": catalog_details,
             "specs_results": specs_results,
-            "comparison": comparison,
+            "comparison": None if choose_one else comparison,
             "response_source": "deterministic",
             "research_requested": validated["research"],
             "research_automatic": automatic,

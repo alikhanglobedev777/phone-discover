@@ -209,7 +209,14 @@ export function RecommendationAssistant({ onOpenDevice, onCompareDevice, marketR
 
   useEffect(() => {
     const stream = chatStreamRef.current;
-    if (stream) stream.scrollTop = stream.scrollHeight;
+    if (!stream) return;
+    const reply = stream.lastElementChild;
+    if (!loading && reply?.classList.contains("chat-assistant")) {
+      // Keep the answer visible above long comparison tables and phone cards.
+      stream.scrollTop += reply.getBoundingClientRect().top - stream.getBoundingClientRect().top;
+    } else {
+      stream.scrollTop = stream.scrollHeight;
+    }
   }, [messages, loading]);
 
   useEffect(() => () => {

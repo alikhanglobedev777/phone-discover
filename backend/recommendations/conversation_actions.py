@@ -19,6 +19,28 @@ _NEW_CATEGORY_EXCLUSION = re.compile(r"\b(?:about|details|specs)\b", re.I)
 _PLAIN_BRAND = re.compile(r"\b(?:phones?|models?|options?|mein|batao|show|only)\b", re.I)
 
 
+_CHOICE = re.compile(
+    r"(?:please\s+)?(?:tell\s+me|pick|choose|recommend|suggest|give\s+me)\s+"
+    r"(?:(?:just|only)\s+)?one(?:\s+(?:phone|of\s+(?:them|these)))?(?:\s+please)?[.!?]*", re.I,
+)
+
+
+def single_choice_requested(message):
+    return bool(_CHOICE.fullmatch(message.strip()))
+
+
+def named_pair_parts(message):
+    """Isolate two named operands so an unresolved side cannot come from memory."""
+    sides = re.split(r"\s+(?:vs\.?|versus)\s+", message, maxsplit=1, flags=re.I)
+    if len(sides) == 2:
+        if any(re.fullmatch(r"(?:compare\s+)?(?:it|this|that)(?:\s+phone)?[.?!]*", side.strip(), re.I)
+               for side in sides):
+            return None
+        return sides
+    match = re.search(r"\b(?:between|compare)\s+(.+?)\s+and\s+(.+)", message, re.I)
+    return match.groups() if match else None
+
+
 def comparison_requested(message):
     return bool(_COMPARE.search(message))
 

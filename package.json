@@ -3,9 +3,6 @@
   "private": true,
   "version": "1.0.0",
   "description": "One-command local development for the Phone Discover Django backend",
-  "dependencies": {
-    "node-fetch": "^3.3.2"
-  },
   "scripts": {
     "dev": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/npm-backend.ps1",
     "start": "npm run dev",

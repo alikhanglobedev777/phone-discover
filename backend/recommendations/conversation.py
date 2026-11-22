@@ -102,11 +102,12 @@ def build_conversation_criteria(validated, supplied_fields, previous):
     return criteria
 
 
-def store_context(criteria, *, recent_device_slugs=()):
+def store_context(criteria, *, recent_device_slugs=(), compared_pair=False):
     preferences = {
         key: value for key in PREFERENCE_FIELDS
         if (value := criteria.get(key)) is not None
     }
+    preferences["compared_pair"] = compared_pair
     preferences["response_language"] = criteria["response_language"]
     # Bounded model identifiers only, not raw text or phone details.
     preferences["recent_device_slugs"] = [

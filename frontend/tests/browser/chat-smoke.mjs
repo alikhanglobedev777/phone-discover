@@ -61,6 +61,10 @@ async function mockApi(page) {
       }));
     }
     if (url.pathname === "/api/catalog/devices/" + PHONE_SLUG + "/") return route.fulfill(json(phone));
+    const sibling = /^\/api\/catalog\/devices\/(pixel-8|pixel-8-pro)\/$/.exec(url.pathname);
+    if (sibling) return route.fulfill(json({
+      ...phone, slug: sibling[1], name: sibling[1] === "pixel-8" ? "Pixel 8" : "Pixel 8 Pro",
+    }));
     if (route.request().method() === "DELETE") return route.fulfill({status:204,body:""});
     if (url.pathname === "/api/catalog/devices/search-index/" ||
         url.pathname === "/api/catalog/devices/latest/") {
@@ -110,6 +114,20 @@ try {
     assert.match(page.url(),/compare=google-pixel-7a/);
     assert.deepEqual(errors,[],"Browser errors at " + size.width);
     console.log("PASS: " + size.width + "px chat, source badge, compare and detail modal");
+    for (const slugs of [[PHONE_SLUG, "pixel-8"], [PHONE_SLUG, "pixel-8", "pixel-8-pro"]]) {
+      await page.goto(BASE + "/?compare=" + slugs.join(",") + "#compare");
+      await page.locator(".comparison-product").nth(slugs.length - 1).waitFor();
+      const overflow = await page.locator(".comparison-scroll").evaluate(
+        (table) => table.scrollWidth - table.clientWidth
+      );
+      assert.ok(overflow <= 1, "Comparison requires horizontal scrolling at " + size.width);
+      const columns = await page.locator(".comparison-product").evaluateAll(
+        (items) => items.map((item) => item.getBoundingClientRect().left)
+      );
+      const values = await page.locator(".comparison-row").first().locator(".comparison-cell")
+        .evaluateAll((items) => items.map((item) => item.getBoundingClientRect().left));
+      assert.deepEqual(columns, values, "Values align with the selected phones");
+    }
     await context.close();
   }
 } finally {

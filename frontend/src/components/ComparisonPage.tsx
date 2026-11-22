@@ -32,25 +32,23 @@ function ComparisonRow({
   label,
   cells,
   best,
-  style,
 }: {
   label: string;
   cells: ComparisonCell[];
   best?: "min" | "max";
-  style: CSSProperties;
 }) {
   const numericValues = cells
     .map((cell) => cell.numeric)
     .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
-  const bestValue = numericValues.length && best
+  const bestValue = numericValues.length === cells.length && new Set(numericValues).size > 1 && best
     ? (best === "min" ? Math.min(...numericValues) : Math.max(...numericValues))
     : null;
 
   return (
-    <div className="comparison-row" style={style}>
+    <div className="comparison-row">
       <strong className="comparison-label">{label}</strong>
       {cells.map((cell, index) => {
-        const isBest = bestValue !== null && cell.numeric === bestValue && numericValues.length > 1;
+        const isBest = bestValue !== null && cell.numeric === bestValue;
         return (
           <div className={`comparison-cell ${isBest ? "comparison-cell-best" : ""}`} key={index}>
             {isBest && <span className="best-marker">Best</span>}
@@ -72,10 +70,6 @@ export function ComparisonPage({ devices, loading, onClose, onRemove, onAdd, onO
   const [sources, setSources] = useState<ComparisonLookupResult["sources"]>([]);
   const requestRef = useRef<AbortController | null>(null);
   useEffect(() => () => requestRef.current?.abort(), []);
-  const gridStyle = {
-    gridTemplateColumns: `145px repeat(${Math.max(devices.length, 1)}, minmax(210px, 1fr))`,
-  };
-
   async function searchPhone(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const term = query.trim();
@@ -172,9 +166,9 @@ export function ComparisonPage({ devices, loading, onClose, onRemove, onAdd, onO
       {loading && <p className="compare-placeholder-message" role="status">Loading your selected phones…</p>}
       {!devices.length && !loading && <div className="compare-placeholder-message"><strong>Your comparison starts here.</strong><p>Search for phones above, then select up to three to see a full side-by-side comparison.</p></div>}
       {!!devices.length && <>
-        <div className="comparison-scroll">
+        <div className="comparison-scroll" style={{ "--phone-count": devices.length } as CSSProperties}>
 
-          <div className="comparison-products" style={gridStyle}>
+          <div className="comparison-products">
             <div className="comparison-label">Phones</div>
             {devices.map((device) => (
               <article className="comparison-product" key={device.slug}>
@@ -190,17 +184,17 @@ export function ComparisonPage({ devices, loading, onClose, onRemove, onAdd, onO
           </div>
 
           <div className="comparison-group-title">Price and availability</div>
-          <ComparisonRow label="Starting price" best={canComparePrices ? "min" : undefined} style={gridStyle} cells={devices.map((device) => ({
+          <ComparisonRow label="Starting price" best={canComparePrices ? "min" : undefined} cells={devices.map((device) => ({
             content: device.lowest_price ? `${device.lowest_price.currency} ${device.lowest_price.price}` : "Unavailable",
             numeric: canComparePrices ? numericPrice(device) : null,
           }))} />
           {!canComparePrices && <div className="comparison-currency-note" role="note">Price highlights are disabled because offers are missing or use different currencies.</div>}
-          <ComparisonRow label="Status" style={gridStyle} cells={devices.map((device) => ({ content: device.status }))} />
-          <ComparisonRow label="Released" style={gridStyle} cells={devices.map((device) => ({ content: device.release_date ?? "—" }))} />
-          <ComparisonRow label="Operating system" style={gridStyle} cells={devices.map((device) => ({ content: device.operating_system }))} />
+          <ComparisonRow label="Status" cells={devices.map((device) => ({ content: device.status }))} />
+          <ComparisonRow label="Released" cells={devices.map((device) => ({ content: device.release_date ?? "—" }))} />
+          <ComparisonRow label="Operating system" cells={devices.map((device) => ({ content: device.operating_system }))} />
 
           <div className="comparison-group-title">Configurations and finishes</div>
-          <ComparisonRow label="RAM / storage options" style={gridStyle} cells={devices.map((device) => ({
+          <ComparisonRow label="RAM / storage options" cells={devices.map((device) => ({
             content: device.variants?.length
               ? [...device.variants]
                   .sort((a, b) => a.ram_gb - b.ram_gb || a.storage_gb - b.storage_gb)
@@ -208,26 +202,25 @@ export function ComparisonPage({ devices, loading, onClose, onRemove, onAdd, onO
                   .join(", ")
               : "Not documented",
           }))} />
-          <ComparisonRow label="Documented colors" style={gridStyle} cells={devices.map((device) => ({
+          <ComparisonRow label="Documented colors" cells={devices.map((device) => ({
             content: device.colors?.length ? device.colors.map((color) => color.name).join(", ") : "Not documented",
           }))} />
           <div className="comparison-group-title">Core hardware</div>
-          <ComparisonRow label="RAM" best="max" style={gridStyle} cells={devices.map((device) => ({ content: `${mainVariant(device)?.ram_gb ?? "—"} GB`, numeric: mainVariant(device)?.ram_gb }))} />
-          <ComparisonRow label="Storage" best="max" style={gridStyle} cells={devices.map((device) => ({ content: `${mainVariant(device)?.storage_gb ?? "—"} GB`, numeric: mainVariant(device)?.storage_gb }))} />
-          <ComparisonRow label="Chipset" style={gridStyle} cells={devices.map((device) => ({ content: mainVariant(device)?.chipset ?? "—" }))} />
-          <ComparisonRow label="Refresh rate" best="max" style={gridStyle} cells={devices.map((device) => ({ content: mainVariant(device)?.display_refresh_hz ? `${mainVariant(device)?.display_refresh_hz} Hz` : "—", numeric: mainVariant(device)?.display_refresh_hz }))} />
-          <ComparisonRow label="Battery" best="max" style={gridStyle} cells={devices.map((device) => ({ content: mainVariant(device)?.battery_mah ? `${mainVariant(device)?.battery_mah} mAh` : "—", numeric: mainVariant(device)?.battery_mah }))} />
+          <ComparisonRow label="RAM" best="max" cells={devices.map((device) => ({ content: `${mainVariant(device)?.ram_gb ?? "—"} GB`, numeric: mainVariant(device)?.ram_gb }))} />
+          <ComparisonRow label="Storage" best="max" cells={devices.map((device) => ({ content: `${mainVariant(device)?.storage_gb ?? "—"} GB`, numeric: mainVariant(device)?.storage_gb }))} />
+          <ComparisonRow label="Chipset" cells={devices.map((device) => ({ content: mainVariant(device)?.chipset ?? "—" }))} />
+          <ComparisonRow label="Refresh rate" best="max" cells={devices.map((device) => ({ content: mainVariant(device)?.display_refresh_hz ? `${mainVariant(device)?.display_refresh_hz} Hz` : "—", numeric: mainVariant(device)?.display_refresh_hz }))} />
+          <ComparisonRow label="Battery" best="max" cells={devices.map((device) => ({ content: mainVariant(device)?.battery_mah ? `${mainVariant(device)?.battery_mah} mAh` : "—", numeric: mainVariant(device)?.battery_mah }))} />
 
           <div className="comparison-group-title">Scores</div>
-          <ComparisonRow label="Camera" best="max" style={gridStyle} cells={devices.map((device) => ({ content: Number(mainVariant(device)?.camera_score ?? 0) > 0 ? `${Number(mainVariant(device)?.camera_score).toFixed(0)}/100` : "Not rated", numeric: Number(mainVariant(device)?.camera_score ?? 0) > 0 ? Number(mainVariant(device)?.camera_score) : null }))} />
-          <ComparisonRow label="Gaming" best="max" style={gridStyle} cells={devices.map((device) => ({ content: Number(mainVariant(device)?.gaming_score ?? 0) > 0 ? `${Number(mainVariant(device)?.gaming_score).toFixed(0)}/100` : "Not rated", numeric: Number(mainVariant(device)?.gaming_score ?? 0) > 0 ? Number(mainVariant(device)?.gaming_score) : null }))} />
-          <ComparisonRow label="Battery score" best="max" style={gridStyle} cells={devices.map((device) => ({ content: Number(mainVariant(device)?.battery_score ?? 0) > 0 ? `${Number(mainVariant(device)?.battery_score).toFixed(0)}/100` : "Not rated", numeric: Number(mainVariant(device)?.battery_score ?? 0) > 0 ? Number(mainVariant(device)?.battery_score) : null }))} />
+          <ComparisonRow label="Camera" best="max" cells={devices.map((device) => ({ content: Number(mainVariant(device)?.camera_score ?? 0) > 0 ? `${Number(mainVariant(device)?.camera_score).toFixed(0)}/100` : "Not rated", numeric: Number(mainVariant(device)?.camera_score ?? 0) > 0 ? Number(mainVariant(device)?.camera_score) : null }))} />
+          <ComparisonRow label="Gaming" best="max" cells={devices.map((device) => ({ content: Number(mainVariant(device)?.gaming_score ?? 0) > 0 ? `${Number(mainVariant(device)?.gaming_score).toFixed(0)}/100` : "Not rated", numeric: Number(mainVariant(device)?.gaming_score ?? 0) > 0 ? Number(mainVariant(device)?.gaming_score) : null }))} />
+          <ComparisonRow label="Battery score" best="max" cells={devices.map((device) => ({ content: Number(mainVariant(device)?.battery_score ?? 0) > 0 ? `${Number(mainVariant(device)?.battery_score).toFixed(0)}/100` : "Not rated", numeric: Number(mainVariant(device)?.battery_score ?? 0) > 0 ? Number(mainVariant(device)?.battery_score) : null }))} />
 
           {specificationRows.length > 0 && <div className="comparison-group-title">Detailed specifications</div>}
           {specificationRows.map((row) => (
             <ComparisonRow
               label={`${row.section} · ${row.label}`}
-              style={gridStyle}
               cells={row.values.map((value) => ({ content: value }))}
               key={row.key}
             />

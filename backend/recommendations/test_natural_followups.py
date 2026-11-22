@@ -131,6 +131,39 @@ class NaturalFollowupTests(TestCase):
         self.assertIsNone(result.data["comparison"])
         self.assertIn("name the two phones", result.data["explanation"])
 
+    def test_shared_family_and_single_pick_from_the_video(self):
+        xiaomi = Brand.objects.create(name="Xiaomi", slug="xiaomi")
+        for name, slug, storage in (("Redmi Note 15", "note-15", 128),
+                                    ("Redmi Note 15 Pro", "note-15-pro", 256)):
+            device = Device.objects.create(brand=xiaomi, name=name, slug=slug, is_published=True)
+            DeviceVariant.objects.create(device=device, ram_gb=8, storage_gb=storage)
+        first = self.ask("Which one is best in between Redmi note 15 and note 15 pro")
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual([p["slug"] for p in first.data["comparison"]["phones"]],
+                         ["note-15", "note-15-pro"])
+        follow = self.ask("Tell me one", session_id=first.data["session_id"])
+        self.assertIn("pick Xiaomi Redmi Note 15 Pro for storage", follow.data["explanation"])
+        self.assertIn("256 GB", follow.data["explanation"])
+        self.assertIn("128 GB", follow.data["explanation"])
+        self.assertFalse(follow.data["comparison"])
+        self.assertFalse(follow.data["catalog_details"])
+        self.assertFalse(follow.data["results"])
+        self.assertFalse(follow.data["research_automatic"])
+        camera = self.ask("Which one has better camera?", session_id=first.data["session_id"])
+        self.assertIn("can’t establish a winner for camera", camera.data["explanation"])
+        other = self.ask("Tell me one", session_id=first.data["session_id"], use_memory=False)
+        self.assertNotIn("Redmi", other.data["explanation"])
+
+    def test_unknown_explicit_variant_does_not_use_base_or_remembered_phone(self):
+        initial = self.ask("Pixel 7a")
+        for text in ("Compare Galaxy S26 and Galaxy S26 Pro",
+                     "Which is better between Galaxy S26 and S26 Pro?"):
+            with self.subTest(text=text):
+                response = self.ask(text, session_id=initial.data["session_id"])
+                self.assertIsNone(response.data["comparison"])
+                self.assertIn("name the two phones", response.data["explanation"])
+                self.assertFalse(response.data["results"])
+
     def test_plain_brand_followup_releases_prior_exact_model(self):
         first = self.ask("Samsung Galaxy S26 Ultra")
         second = self.ask("Show Samsung phones", session_id=first.data["session_id"])

@@ -42,7 +42,7 @@ def _alias_patterns(brand, name):
     return normalized
 
 
-def catalog_mentions(message, *, max_matches=3):
+def catalog_mentions(message, *, max_matches=3, brand_slug=None):
     """Find models actually present in the DB, preferring full-name spans.
 
     A phone's alias cannot consume part of another recognized phone name.
@@ -61,6 +61,8 @@ def catalog_mentions(message, *, max_matches=3):
     matches = []
     qs = (Device.objects.filter(is_published=True).filter(names)
           .select_related("brand").only("slug", "name", "brand__name", "brand__slug"))
+    if brand_slug:
+        qs = qs.filter(brand__slug=brand_slug)
     for device in qs.iterator(chunk_size=500):
         for _, regex in _alias_patterns(device.brand.name, device.name):
             for hit in regex.finditer(message):
@@ -80,6 +82,35 @@ def catalog_mentions(message, *, max_matches=3):
         selected.append(candidate)
         used_slugs.add(candidate["slug"])
     return sorted(selected, key=lambda x: x["start"])[:max_matches]
+
+
+def _pair_mention(text, *, brand_slug=None):
+    matches = catalog_mentions(text, brand_slug=brand_slug)
+    if len(matches) == 1:
+        match = matches[0]
+        # An unlisted variant must not silently resolve to its base model.
+        suffix = text[match["end"]:]
+        if not re.match(r"\s*(?:\+|(?:pro|plus|ultra|max|lite|mini|fe|[45]g)\b)", suffix, re.I):
+            return match
+    return None
+
+
+def named_comparison_slugs(left, right):
+    first = _pair_mention(left)
+    if not first:
+        return []
+    # Carry over only the omitted family prefix ("Redmi Note 15 and Note 15 Pro").
+    # Resolve the expanded name within the first phone's brand.
+    words = first["name"].split()
+    for index, word in enumerate(words[1:], 1):
+        if re.match(re.escape(word) + r"\b", right, re.I):
+            expanded = " ".join([*words[:index], right])
+            second = _pair_mention(expanded, brand_slug=first["brand"])
+            if second and second["start"] == 0:
+                return [first["slug"], second["slug"]]
+            return []
+    second = _pair_mention(right)
+    return [first["slug"], second["slug"]] if second else []
 
 
 def _quality(value):
@@ -250,6 +281,35 @@ def _comparable_price_samples(first, second):
             "clear lower-priced option."
         ),
     }
+
+
+def comparison_advice(comparison, priorities):
+    first, second = comparison["phones"]
+    names = {p["slug"]: p["name"] for p in (first, second)}
+    for priority in priorities:
+        row = next((r for r in comparison["dimensions"] if r["dimension"] == priority), None)
+        if row and row["leader_slug"]:
+            return (f"For {priority}, my pick is {names[row['leader_slug']]}. "
+                    f"The catalog rates {first['name']} {row['first_score']:g}/100 "
+                    f"and {second['name']} {row['second_score']:g}/100 for {priority}.")
+    prices = comparison["market_price_comparison"]
+    cheaper = prices.get("lower_observed_price_slug")
+    if cheaper and (not priorities or "value" in priorities):
+        return (f"For the lower observed price, I’d pick {names[cheaper]}. "
+                "Its reviewed asking-price range was lower for matching configurations.")
+    if not priorities:
+        # Use one concrete, named trade-off when no performance priority was given.
+        for row in comparison["hardware_facts"]:
+            if row["field"] != "storage_gb" or not (row["first"] and row["second"]):
+                continue
+            a, b = (int(row[side].split()[0]) for side in ("first", "second"))
+            if a != b:
+                pick, other = (first, second) if a > b else (second, first)
+                return (f"I’d pick {pick['name']} for storage. Its listed configuration has "
+                        f"{max(a, b)} GB, compared with {min(a, b)} GB on {other['name']}.")
+    focus = ", ".join(priorities) or "overall performance"
+    return (f"I can’t establish a winner for {focus} between {first['name']} and "
+            f"{second['name']} from their catalog data. Which other feature should decide?")
 
 
 def compare_catalog_phones(slugs, priorities=()):
